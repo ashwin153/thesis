@@ -1,9 +1,11 @@
 \documentclass[../main.tex]{subfiles}
 
 \begin{document}
-
-% Introduction.
-\section{Introduction}
+In this chapter, we will discuss Beaker. Beaker is a distributed, fault-tolerant database that
+efficiently implements the interface on which transactional programming languages can be built. We
+will first motivate the design of Beaker by discussing consensus and its application to distributed
+transactions. We will then introduce Beaker and discuss its implementation. We will conclude with an
+evaluation of its performance.
 
 % Consensus.
 \section{Consensus}
@@ -140,17 +142,74 @@ culminating with the approach taken in Beaker.
   $4 * 1 = 4 * 1 * 1$ but $4 * 2 \ne 4 * 2 * 2$. We will see how we can modify Egalitarian Paxos to
   implement a distributed database.
 
-  % Design.
+% Design.
 \section{Design}
 
+  % Terminology.
   \subsection{Terminology}
 
+  % Protocol.
   \subsection{Protocol}
 
+  % Correctness.
   \subsection{Correctness}
+
+  \begin{theorem}[Liveness]
+    An accepted proposal $A$ will eventually be learned.
+  \end{theorem}
+  \begin{proof}
+    By majority intersection, at least one promise will contain $A$. Therefore, $A$ must be proposed
+    enough beakers learn $A$ such that $A$ is no longer accepted by a majority. By assumption of
+    connectivity, if any beaker learns a proposal then all beakers will eventually learn it.
+  \end{proof}
+
+  \begin{theorem}[Linearizability]
+    If a proposal $A$ is accepted, then any conflicting proposal $B$ that is accepted after $A$ will
+    be learned after $A$.
+  \end{theorem}
+  \begin{proof}
+    Because $A$ was accepted before $B$, the majority that accepted $A$ before $B$ will request that
+    a $A$ be learned before $B$. Because messages are delivered in order, $A$ will be learned before
+    $B$.
+  \end{proof}
+
+  \begin{theorem}[Commutativity]
+    Let $R$ denote the repairs for an accepted proposal $A$. Any accepted proposal $B$ that
+    conflicts with $A + R$ but not $A$ commutes with $A + R$.
+  \end{theorem}
+  \begin{proof}
+    Because $B$ conflicts with $A + R$ but not $A$, $B$ must read a key $k$ that is read by $A$. By
+    linearizability, $B$ must read the latest version of $k$ because $B$ is accepted. Suppose that
+    $B$ is committed first. Because $B$ reads and does not write $k$, $A + R$ can still be
+    committed. Suppose that $A + R$ is committed first. Because $A + R$ writes the latest version of
+    $k$ and $B$ reads the latest version, $B$ can still be committed.
+  \end{proof}
+
+  \begin{theorem}[Consistency]
+    If a proposal $A$ is accepted, it can be committed.
+  \end{theorem}
+  \begin{proof}
+    Suppose there exists a transaction that cannot be committed. Then, the transaction must read a
+    key for which there exists a newer version. This implies that there exists a proposal $B$ that
+    was accepted after but learned before $A$ that changes a key $k$ that is read by $A$. By
+    linearizability, $B$ cannot conflict with $A$. Therefore, $B$ must repair $k$. By commutativity,
+    $A$ may still be committed.
+  \end{proof}
+
+  % Implementation.
+  \subsection{Implementation}
+
+    % Reconfiguration.
+    \subsubsection{Reconfiguration}
+
+    % Caching.
+    \subsubsection{Caching}
 
 % Evaluation.
 \section{Evaluation}
+
+  % Contention.
+  \subsection{Contention}
 
 % Conclusion.
 \section{Conclusion}

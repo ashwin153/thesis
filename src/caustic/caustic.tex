@@ -1,26 +1,20 @@
 \documentclass[../main.tex]{subfiles}
 
 \begin{document}
-Many programming languages provide fundamental abstractions such as locks, semaphores, and monitors
-to explicitly deal with race conditions. Some, like Rust \cite{rust}, go a step further and are able
-to statically detect race conditions between concurrent threads. But none, however, are able
-guarantee that race conditions will be completely eliminated from distributed systems. Distributed
-systems form the computing backbone of nearly every major technology from social networks to video
-streaming, but their intricate complexity coupled with the inability to detect race conditions makes
-designing them extremely error-prone. Caustic is a programming language for building correct
-distributed systems. Programs written in Caustic may be distributed arbitrarily without the use of
-any explicit synchronization, and will never exhibit race conditions.
+In this chapter, we will discuss Caustic. Caustic is a transactional programming language that
+allows programs to be written as if they were single-threaded applications, but permits them to be
+distributed arbitrarily without error. We will first motivate transactional programming by
+discussing race conditions and the various techniques that are typically used to deal with them. We
+will then introduce the Caustic programming language and discuss the various assumptions that it
+makes about the underlying storage system and the implementation of its various components. We will
+conclude with an evaluation of its programmability and performance.
 
-% Introduction.
-\section{Introduction}
-Concurrency is \emph{hard}. Concurrency refers to situations in which multiple programs
-simultaneously modify shared data. Concurrent programs may be run across threads, processes,
-and, in the case of distributed systems, networks. Concurrency is challenging because it introduces
-ambiguity in execution order, and it is precisely this ambiguity that causes race conditions. Race
-conditions are situations in which the execution order of concurrent programs affects the outcome.
-For example, suppose there exist two programs $A$ and $B$ that each increment a shared counter $x$.
-Each program must first read the current value of $x$ in order to write $x + 1$. If $B$ reads
-\emph{after} $A$ writes, then $B$ reads $x + 1$ and writes $x + 2$. However, if $B$ reads
+% Race Conditions.
+\section{Race Conditions}
+Race conditions may occur whenever the order of execution of concurrent programs affects their
+outcome. For example, suppose there exist two programs $A$ and $B$ that each increment a shared
+counter $x$. Each program must first read the current value of $x$ in order to write $x + 1$. If
+$B$ reads \emph{after} $A$ writes, then $B$ reads $x + 1$ and writes $x + 2$. However, if $B$ reads
 \emph{before} $A$ writes but after $A$ reads, then both $A$ and $B$ will read $x$ and write $x + 1$.
 This is an example of a race condition, because the value of the counter $x$ depends on the order in
 which $A$ and $B$ are executed. This race condition may seem relatively benign, but it can have
@@ -29,12 +23,10 @@ balance. What if your bank determined your balance differently depending on the 
 deposits are made? Race conditions manifest themselves in subtle ways in concurrent systems, and
 they can often be difficult to detect and challenging to remove.
 
-% Race Conditions.
-\section{Race Conditions}
 Before introducing mechanisms to deal with race conditions, we must first define the necessary and
 sufficient criteria that any such mechanism must satisfy to correctly mitigate race conditions.
 Race conditions are a relatively well-studied problem in database literature, and we may draw upon
-known results from the field to define four properties of race-free programs. \cite{transactions}
+known results from the field to define four properties of race-free programs.~\cite{transactions}
 
 \begin{itemize}
 \item \textbf{Atomic}: Programs are all-or-nothing; they are never partially applied.
@@ -101,11 +93,29 @@ known results from the field to define four properties of race-free programs. \c
   systems including Caustic. \cite{stm} Optimistic concurrency assumes that contention between
   programs will be low, because frequent retries can significantly degrade performance.
 
+
 % Design.
 \section{Design}
 Caustic is composed of three components: a \textbf{runtime} that executes programs, a
 \textbf{standard library} that simplifies program construction, and a \textbf{compiler} that
-simplifies program syntax. In this section, we'll describe each of these components in detail.
+simplifies program expression. In this section, we'll describe each of these components in detail.
+
+  % Assumptions.
+  \subsection{Assumptions}
+  Caustic assumes that the underlying storage \textbf{volume} is a key-value store that supports two
+  operations: non-transactional \emph{get} and transactional \emph{cas}. The key challenge in
+  implementing cas is detecting whether or not dependencies have changed. Caustic uses multi-version
+  concurrency controls to track modifications to keys. It associates each key with
+  \textbf{revision}, or versioned value, whose version is incremented each time its value is
+  changed. We say that revision $A$ \emph{conflicts} with revision $B$ if $A$ and $B$ correspond to
+  the same key and the version of $A$ is less than $B$. Conflict is an asymmetric relation; if $A$
+  conflicts with $B$, then $B$ does not conflict with $A$.
+
+  Formally, we require that get returns any revisions for a set of keys and that cas transactionally
+  updates the revisions of a set of keys if and only if the revisions of a set of dependent keys do
+  not conflict with their corresponding revisions in the volume. We will provide a distributed,
+  fault-tolerant implementation of a volume in Beaker. For now, we will assume that such an
+  implementation exists.
 
   \subsection{Runtime}
   The runtime is a virtual machine that dynamically translates \textbf{programs} into transactions.
@@ -113,45 +123,36 @@ simplifies program syntax. In this section, we'll describe each of these compone
   \textbf{expressions}. A literal is a scalar value of type flag, real, text, and null which
   correspond to bool, double, string, and null respectively in most C-style languages. An expression
   is a function that transforms literal arguments into a literal result. Expressions may be chained
-  together arbitrarily to form complex programs. Table \ref{table:expressions} enumerates the
-  various expressions supported by the runtime.
+  together arbitrarily to form complex programs. Table~\ref{table:expressions} enumerates the
+  various expressions natively supported by the runtime.
 
     \subsubsection{Execution}
     The runtime uses iterative partial evaluation to gradually reduce programs into a single literal
-    result. Modifications to keys are tracked using multiversion concurrency control. Each key is
-    associated with a \textbf{revision}, or versioned value, whose version number is incremented
-    each time that its value is changed. A revision $A$ \emph{conflicts with} $B$ if $A$ and $B$
-    correspond to the same key and the version of $A$ is less than $B$. Conflict is an asymmetric
-    relation; if $A$ conflicts with $B$, then $B$ does not conflict with $A$.
-
-    The runtime \emph{executes} programs on \textbf{volumes}. A volume is a database that supports
-    \emph{get} and \emph{cas}. Get retrieves the revisions of a set of keys and cas transactionally
-    updates a set of keys if and only if a set of dependent revisions do not conflict with their
-    current revisions in the database. Given correct implementations of get and cas, the runtime
-    executes programs according to the following procedure.
+    result. Given correct implementations of get and cas, the runtime executes programs according to
+    the following procedure.
 
     \begin{enumerate}
-    \item \textbf{Fetch}: Get all keys that are read or written by the program that have not been
-    fetched before and add the returned revisions to a local snapshot.
-    \item \textbf{Evaluate}: Recursively replace all expressions with literal arguments with their
-    corresponding literal result. For example,
+      \item \textbf{Fetch}: Get all keys that are read or written by the program that have not been
+            fetched before and add the returned revisions to a local snapshot.
+      \item \textbf{Evaluate}: Recursively replace all expressions with literal arguments with their
+            corresponding literal result. For example,
 
-    \[
-    \begin{gathered}
-    add(real(1), sub(real(0), real(2))) \rightarrow real(-1)
-    \end{gathered}
-    \]
+            \[
+            \begin{gathered}
+            add(real(1), sub(real(0), real(2))) \rightarrow real(-1)
+            \end{gathered}
+            \]
 
-    The result of all writes is saved to a local buffer and the result of all read
-    expressions is the latest value of the key in the local buffer or snapshot.
-    \item \textbf{Repeat}: Loop until the program is reduced to a single literal. Because all
-    expressions with literal arguments return a literal result, all programs will eventually
-    reduce to a single literal.
-    \item \textbf{Commit}: Cas all keys in the local buffer conditioned on all revisions in
-    the local snapshot. Because programs are executed with snapshot isolation, they are
-    guaranteed to be serializable. Serializability implies that concurrent execution has the
-    same effect as some sequential execution, and, therefore, that program execution will be
-    robust against race conditions.
+            The result of all writes is saved to a local buffer and the result of all read
+            expressions is the latest value of the key in the local buffer or snapshot.
+      \item \textbf{Repeat}: Loop until the program is reduced to a single literal. Because all
+            expressions with literal arguments return a literal result, all programs will eventually
+            reduce to a single literal.
+      \item \textbf{Commit}: Cas all keys in the local buffer conditioned on all revisions in
+            the local snapshot. Because programs are executed with snapshot isolation, they are
+            guaranteed to be serializable. Serializability implies that concurrent execution has the
+            same effect as some sequential execution, and, therefore, that program execution will be
+            robust against race conditions.
     \end{enumerate}
 
     \subsubsection{Optimizations}

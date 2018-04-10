@@ -7,85 +7,85 @@
   \centering
   \begin{tabular}{l | l}
     \hline\hline
-    Expression & Description                                                                          \\
+    Expression & Description                                                                      \\
     \hline
-    add(x, y)                & Sum of $x$ and $y$.                                                    \\
-    both(x, y)               & Bitwise AND of $x$ and $y$.                                            \\
-    branch(c, p, f)          & Executes $p$ if $c$ is true, or $f$ otherwise.                         \\
-    cons(a, b)               & Executes $a$ and then $b$.                                             \\
-    contains(x, y)           & Returns whether or not $x$ contains $y$.                               \\
-    cos(x)                   & Cosine of $x$.                                                         \\
-    div(x, y)                & Quotient of $x$ and $y$.                                               \\
-    either(x, y)             & Bitwise OR of $x$ and $y$.                                             \\
-    equal(x, y)              & Returns whether $x$ and $y$ are equal.                                 \\
-    floor(x)                 & Floor of $x$.                                                          \\
-    indexOf(x, y)            & Returns the index of the first occurrence of $y$ in $x$.               \\
-    length(x)                & Returns the number of characters in $x$.                               \\
-    less(x, y)               & Returns whether $x$ is strictly less than $y$.                         \\
-    load(n)                  & Loads the value of the variable $n$.                                   \\
-    log(x)                   & Natural log of $x$.                                                    \\
-    matches(x, y)            & Returns whether or not $x$ matches the regex pattern $y$.              \\
-    mod(x, y)                & Remainder of $x$ divided by $y$.                                       \\
-    mul(x, y)                & Product of $x$ and $y$.                                                \\
-    negate(x)                & Bitwise negation of $x$.                                               \\
-    pow(x, y)                & Returns $x$ raised to the power $y$.                                   \\
-    prefetch(k, s)           & Reads keys at $k/i$ for $i$ in $[0, s)$.                               \\
-    read(k)                  & Reads the value of the key $k$.                                        \\
-    repeat(c, b)             & Repeatedly executes $b$ while $c$ is true.                             \\
-    rollback(r)              & Discards all writes and returns $r$.                                   \\
-    sin(x)                   & Sine of $x$.                                                           \\
-    slice(x, l, h)           & Returns the substring of $x$ between $[l, h)$.                         \\
-    store(n, v)              & Stores the value $v$ for the variable $n$.                             \\
-    sub(x, y)                & Difference of $x$ and $y$.                                             \\
-    write(k, v)              & Writes the value $v$ for the key $k$.                                  \\
+    add(x, y)                & Sum of $x$ and $y$.                                                \\
+    both(x, y)               & Bitwise AND of $x$ and $y$.                                        \\
+    branch(c, p, f)          & Executes $p$ if $c$ is true, or $f$ otherwise.                     \\
+    cons(a, b)               & Executes $a$ and then $b$.                                         \\
+    contains(x, y)           & Returns whether or not $x$ contains $y$.                           \\
+    cos(x)                   & Cosine of $x$.                                                     \\
+    div(x, y)                & Quotient of $x$ and $y$.                                           \\
+    either(x, y)             & Bitwise OR of $x$ and $y$.                                         \\
+    equal(x, y)              & Returns whether $x$ and $y$ are equal.                             \\
+    floor(x)                 & Floor of $x$.                                                      \\
+    indexOf(x, y)            & Returns the index of the first occurrence of $y$ in $x$.           \\
+    length(x)                & Returns the number of characters in $x$.                           \\
+    less(x, y)               & Returns whether $x$ is strictly less than $y$.                     \\
+    load(n)                  & Loads the value of the variable $n$.                               \\
+    log(x)                   & Natural log of $x$.                                                \\
+    matches(x, y)            & Returns whether or not $x$ matches the regex pattern $y$.          \\
+    mod(x, y)                & Remainder of $x$ divided by $y$.                                   \\
+    mul(x, y)                & Product of $x$ and $y$.                                            \\
+    negate(x)                & Bitwise negation of $x$.                                           \\
+    pow(x, y)                & Returns $x$ raised to the power $y$.                               \\
+    prefetch(k, s)           & Reads keys at $k/i$ for $i$ in $[0, s)$.                           \\
+    read(k)                  & Reads the value of the key $k$.                                    \\
+    repeat(c, b)             & Repeatedly executes $b$ while $c$ is true.                         \\
+    rollback(r)              & Discards all writes and returns $r$.                               \\
+    sin(x)                   & Sine of $x$.                                                       \\
+    slice(x, l, h)           & Returns the substring of $x$ between $[l, h)$.                     \\
+    store(n, v)              & Stores the value $v$ for the variable $n$.                         \\
+    sub(x, y)                & Difference of $x$ and $y$.                                         \\
+    write(k, v)              & Writes the value $v$ for the key $k$.                              \\
   \end{tabular}
   \label{table:expressions}
 \end{table}
 
 \begin{table}[ht]
-\caption{Math}
-\centering
-\begin{tabular}{l | l}
-\hline\hline
-Function & Description                                                                            \\
-\hline
-abs(x)                   & Absolute value of $x$.                                                 \\
-acos(x)                  & Cosine inverse of $x$.                                                 \\
-acot(x)                  & Cotangent inverse of $x$.                                              \\
-acsc(x)                  & Consecant inverse of $x$.                                              \\
-asec(x)                  & Secant inverse of $x$.                                                 \\
-asin(x)                  & Sine inverse of $x$.                                                   \\
-atan(x)                  & Tangent inverse of $x$.                                                \\
-cbrt(x)                  & Cube root of $x$.                                                      \\
-ceil(x)                  & Smallest integer greater than or equal to $x$.                         \\
-cos(x)                   & Cosine of $x$.                                                         \\
-cosh(x)                  & Hyperbolic cosine of $x$.                                              \\
-cot(x)                   & Cotangent of $x$.                                                      \\
-coth(x)                  & Hyperbolic cotangent of $x$.                                           \\
-csc(x)                   & Cosecant of $x$.                                                       \\
-csch(x)                  & Hyperbolic cosecant of $x$.                                            \\
-exp(x)                   & Exponential of $x$.                                                    \\
-expm1(x)                 & Equivalent to $e^x - 1$.                                               \\
-floor(x)                 & Largest integer less than or equal to $x$.                             \\
-hypot(x, y)              & Hypotenuse of the triangle with base $x$ and height $y$.               \\
-log(x)                   & Natural logarithm of $x$.                                              \\
-log10(x)                 & Log base 10 of $x$.                                                    \\
-log1p(x)                 & Equivalent to $\log (x + 1)$.                                          \\
-pow(x, y)                & Power of $x$ to the $y$.                                               \\
-random()                 & Uniformly random number on [0, 1).                                     \\
-rint(x)                  & Closest integer to $x$, rounding to the nearest even number.           \\
-round(x)                 & Closest integer to $x$, rounding up.                                   \\
-round(x, y)              & Closest multiple of $y$ to $x$.                                        \\
-sec(x)                   & Secant of $x$.                                                         \\
-sech(x)                  & Hyperbolic secant of $x$.                                              \\
-signum(x)                & Sign of $x$.                                                           \\
-sin(x)                   & Sine of $x$.                                                           \\
-sinh(x)                  & Hyperbolic sine of $x$.                                                \\
-sqrt(x)                  & Square root of $x$.                                                    \\
-tan(x)                   & Tangent of $x$.                                                        \\
-tanh(x)                  & Hyperbolic tangent of $x$.                                             \\
-\end{tabular}
-\label{table:math}
+  \caption{Math}
+  \centering
+  \begin{tabular}{l | l}
+    \hline\hline
+    Function & Description                                                                        \\
+    \hline
+    abs(x)                   & Absolute value of $x$.                                             \\
+    acos(x)                  & Cosine inverse of $x$.                                             \\
+    acot(x)                  & Cotangent inverse of $x$.                                          \\
+    acsc(x)                  & Consecant inverse of $x$.                                          \\
+    asec(x)                  & Secant inverse of $x$.                                             \\
+    asin(x)                  & Sine inverse of $x$.                                               \\
+    atan(x)                  & Tangent inverse of $x$.                                            \\
+    cbrt(x)                  & Cube root of $x$.                                                  \\
+    ceil(x)                  & Smallest integer greater than or equal to $x$.                     \\
+    cos(x)                   & Cosine of $x$.                                                     \\
+    cosh(x)                  & Hyperbolic cosine of $x$.                                          \\
+    cot(x)                   & Cotangent of $x$.                                                  \\
+    coth(x)                  & Hyperbolic cotangent of $x$.                                       \\
+    csc(x)                   & Cosecant of $x$.                                                   \\
+    csch(x)                  & Hyperbolic cosecant of $x$.                                        \\
+    exp(x)                   & Exponential of $x$.                                                \\
+    expm1(x)                 & Equivalent to $e^x - 1$.                                           \\
+    floor(x)                 & Largest integer less than or equal to $x$.                         \\
+    hypot(x, y)              & Hypotenuse of the triangle with base $x$ and height $y$.           \\
+    log(x)                   & Natural logarithm of $x$.                                          \\
+    log10(x)                 & Log base 10 of $x$.                                                \\
+    log1p(x)                 & Equivalent to $\log (x + 1)$.                                      \\
+    pow(x, y)                & Power of $x$ to the $y$.                                           \\
+    random()                 & Uniformly random number on [0, 1).                                 \\
+    rint(x)                  & Closest integer to $x$, rounding to the nearest even number.       \\
+    round(x)                 & Closest integer to $x$, rounding up.                               \\
+    round(x, y)              & Closest multiple of $y$ to $x$.                                    \\
+    sec(x)                   & Secant of $x$.                                                     \\
+    sech(x)                  & Hyperbolic secant of $x$.                                          \\
+    signum(x)                & Sign of $x$.                                                       \\
+    sin(x)                   & Sine of $x$.                                                       \\
+    sinh(x)                  & Hyperbolic sine of $x$.                                            \\
+    sqrt(x)                  & Square root of $x$.                                                \\
+    tan(x)                   & Tangent of $x$.                                                    \\
+    tanh(x)                  & Hyperbolic tangent of $x$.                                         \\
+  \end{tabular}
+  \label{table:math}
 \end{table}
 
 \begin{figure}
