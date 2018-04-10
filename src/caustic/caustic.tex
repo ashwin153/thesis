@@ -51,7 +51,7 @@ known results from the field to define four properties of race-free programs.~\c
 
   Second, faulty programs may never release their locks. For example, if program $A$ acquires lock
   $x$ and subsequently fails, then no other program can ever acquire $x$. This problem is typically
-  mitigated by using leases. \cite{leases} A lease is a lock that is automatically released after a
+  mitigated by using leases.~\cite{leases} A lease is a lock that is automatically released after a
   certain amount of time. Programs must be carefully constructed so that they complete their
   operations on shared data within the lease duration or refresh the lease before it expires.
 
@@ -75,7 +75,7 @@ known results from the field to define four properties of race-free programs.~\c
   them. Some, like Cassandra and Aerospike, attempt to mimic the relational semantics of SQL, but
   they fall short of implementing the entire SQL specification. Others, like MongoDB and DynamoDB,
   implement entire new query languages. Even SQL is not beyond reproach. SQL lacks a canonical
-  implementation and has ambiguous and unintuitive syntax. \cite{sql} Relational databases like
+  implementation and has ambiguous and unintuitive syntax.~\cite{sql} Relational databases like
   MySQL and PostgreSQL that each claim to implement the same SQL specification actually implement
   incompatible subsets of its functionality. Stark differences between query languages tightly
   couples storage systems and the programs that are run on them, and makes the choice of database
@@ -90,7 +90,7 @@ known results from the field to define four properties of race-free programs.~\c
   accessed remaining unchanged. If any data was modified, the program retries. This conditional
   update, known as a multi-word compare-and-swap and referred to as a \textbf{transaction}, is known
   to satisfy the ACID criteria and is widely used in a number of software transactional memory
-  systems including Caustic. \cite{stm} Optimistic concurrency assumes that contention between
+  systems including Caustic.~\cite{stm} Optimistic concurrency assumes that contention between
   programs will be low, because frequent retries can significantly degrade performance.
 
 
@@ -162,7 +162,7 @@ simplifies program expression. In this section, we'll describe each of these com
     Reads are performed simultaneously whenever possible and writes are buffered and simultaneously
     committed. By batching I/O, the runtime performs a minimal number of operations on the database.
     This has significant performance implications, because I/O overhead is overwhelmingly the
-    bottleneck by many orders of magnitude. \cite{io}
+    bottleneck by many orders of magnitude.~\cite{io}
 
   \subsection{Standard Library}
   The runtime provides native support for an extremely limited subset of the operations that
@@ -176,7 +176,7 @@ simplifies program expression. In this section, we'll describe each of these com
     typing often mistakenly believe that type inference and coercive subtyping cannot be provided by
     a static type system. In fact, they can. Because static type systems are able to
     detect type inaccuracies at compile-time, they allow programmers to write more concise and
-    correct code. \cite{typing} The standard library provides rich static types and features
+    correct code.~\cite{typing} The standard library provides rich static types and features
     aggressive type inference and subtype polymorphism.
 
     The standard library supports four $Primitive$ types. In descending order of precedence, they
@@ -200,7 +200,7 @@ simplifies program expression. In this section, we'll describe each of these com
     various mathematical identities and Taylor series approximations. The $div$, $log$, $sin$, and $cos$
     functions can actually be implemented in terms of the other primitive operations; however, native
     support for them was included in the runtime to improve performance. The standard library provides
-    implementations for the functions enumerated in Table \ref{table:math}.
+    implementations for the functions enumerated in Table~\ref{table:math}.
 
     \subsubsection{Collections}
     The runtime has no native support for collections of key-value pairs. The standard library

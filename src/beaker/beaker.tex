@@ -11,7 +11,7 @@ evaluation of its performance.
 \section{Consensus}
 The only certainty in distributed systems is that machines will fail. The key challenge in building
 fault-tolerant distributed systems is constructing reliable systems from unreliable components.
-\cite{reliability} Distributed databases replicate data across a cluster of machines. By storing
+~\cite{reliability} Distributed databases replicate data across a cluster of machines. By storing
 copies in different places, distributed databases are tolerant of individual machine failures.
 
 Replication solves the problem of fault-tolerance, but creates another; the various replicas must be
@@ -53,7 +53,7 @@ culminating with the approach taken in Beaker.
   Proposals are totally-ordered and uniquely-identified by their \textbf{ballot}. Each replica
   keeps track of the latest ballot that it has seen. Second, it introduces an intermediate
   \emph{accept} phase to the protocol. We will see that this additional phase allows the system to
-  recover from proposer failure. \cite{paxos}
+  recover from proposer failure.~\cite{paxos}
 
   In Paxos, the proposer prepares a proposal by assigning it a ballot greater than any it has seen
   and sending it to all replicas. If the ballot is greater than the latest it has seen, a replica
@@ -73,13 +73,12 @@ culminating with the approach taken in Beaker.
 
   Paxos guarantees that all non-faulty replicas will learn proposals in the same order. Often, this
   guarantee is unnecessary because a large number of operations on a distributed system are
-  \emph{commutative} and so they may be performed in any order. For example, reads and writes to
-  different keys in a database may be performed in any order without compromising consistency. We
-  will see in Generalized Paxos that we can exploit commutativity to improve the throughput of the
-  system.
+  commutative and so they may be performed in any order. For example, reads and writes to different
+  keys in a database may be performed in any order without compromising consistency. We will see in
+  Generalized Paxos that we can exploit commutativity to improve performance.
 
   It is known that no deterministic fault-tolerant consensus protocol can guarantee progress in an
-  asynchronous network. \cite{consensus} Paxos is no exception. If a higher ballot is continuously
+  asynchronous network.~\cite{consensus} Paxos is no exception. If a higher ballot is continuously
   prepared before any proposal can be accepted, no proposal will ever be learned. Implementations of
   Paxos typically elect a distinguished replica, called a \textbf{leader}, to which all other
   replicas forward their proposals to guarantee liveness. Whenever leaders fail, replicas run an
@@ -90,15 +89,16 @@ culminating with the approach taken in Beaker.
   be learned in just two message delays. However, the reliance on the leader to initiate all
   proposals is also a significant bottleneck at scale. The entire system moves at the rate of the
   leader. In fact, this is the fundamental limitation in implementations of Paxos like ZooKeeper
-  \cite{zookeeper} and Chubby \cite{chubby}. We will see in Egalitarian Paxos that we can remove the
-  dependence on a leader to improve the performance of the system.
+  ~\cite{zookeeper} and Chubby~\cite{chubby}. We will see in Egalitarian Paxos that we can remove
+  the dependence on a leader to improve performance.
 
   \subsection{Generalized Paxos}
-  Generalized Paxos addresses the scalability of Paxos by exploiting commutativity. An operation
-  $A$ commutes with $B$ if performing $A$ after $B$ has the same effect as performing $B$ after $A$.
-  For example, addition is commutative but division is not; $4 + 3 = 3 + 4$ but $\frac{4}{3} \ne
-  \frac{3}{4}$. In fact, most operations on a distributed database are commutative. Reads commute
-  with each other and reads and writes to different keys commute. \cite{generalized-paxos}
+  Generalized Paxos~\cite{generalized-paxos} addresses the scalability of Paxos by exploiting
+  commutativity. An operation $A$ commutes with $B$ if performing $A$ after $B$ has the same effect
+  as performing $B$ after $A$. For example, addition is commutative but division is not;
+  $4 + 3 = 3 + 4$ but $\frac{4}{3} \ne \frac{3}{4}$. In fact, most operations on a distributed
+  database are commutative. Reads commute with each other and reads and writes to different keys
+  commute.
 
   Generalized Paxos associates each proposal with a sequence of operations. We say that proposal $A$
   is \emph{equivalent} to proposal $B$ if all non-commutative operations in $A$ and $B$ are in the
@@ -122,11 +122,11 @@ culminating with the approach taken in Beaker.
   system.
 
   \subsection{Egalitarian Paxos}
-  Egalitarian Paxos makes a subtle modification to Generalized Paxos to remove its dependence on a
-  leader. Egalitarian Paxos associates with proposal with a directed acyclic graph of operations.
-  The benefit of using a directed acyclic graph is its various strongly connected components can be
-  performed in parallel. This has huge ramifications for performance, particularly in databases
-  because reads and writes are relatively expensive operations. \cite{epaxos}
+  Egalitarian Paxos~\cite{epaxos} makes a subtle modification to Generalized Paxos to remove its
+  dependence on a leader. Egalitarian Paxos associates with proposal with a directed acyclic graph
+  of operations. The benefit of using a directed acyclic graph is its various strongly connected
+  components can be performed in parallel. This has huge ramifications for performance, particularly
+  in databases because reads and writes are relatively expensive operations.
 
   In Egalitarian Paxos, an operation depends on all accepted proposals for which it does not
   commute. The proposer builds a dependency graph for a proposal from any proposals that it has
@@ -144,6 +144,9 @@ culminating with the approach taken in Beaker.
 
 % Design.
 \section{Design}
+
+  % Assumptions.
+  \subsection{Assumptions}
 
   % Terminology.
   \subsection{Terminology}
