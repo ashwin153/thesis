@@ -1,0 +1,85 @@
+\documentclass[12pt]{report}
+
+% Packages.
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage[backend=biber]{biblatex}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage[parfill]{parskip}
+\usepackage{subfiles}
+\usepackage{xcolor}
+
+% Configuration.
+\graphicspath{{images/}{../images/}}
+
+\lstset{
+  backgroundcolor=\color{white!99!black},
+  numbers=left, numberstyle=\tiny, stepnumber=1, numbersep=5pt,
+}
+
+\lstdefinestyle{Caustic}{
+  basicstyle=\small\ttfamily\color{black},
+  breaklines=true,
+  moredelim=[s][\color{green!50!black}\ttfamily]{'}{'},
+  moredelim=*[s][\color{black}\ttfamily]{options}{\}},
+  commentstyle={\color{gray}\itshape},
+  morecomment=[l]{//},
+  emph={def, del, elif, else, extends, if, import, module, record, return, rollback, service, while, var},
+  emphstyle={\color{blue}\ttfamily},
+  alsoletter={:,|,;},
+  morekeywords={:,|,;},
+  keywordstyle={\color{black}},
+}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  filecolor=blue,
+  urlcolor=blue
+}
+
+% Bibliography.
+\bibliography{caustic/caustic}
+\bibliography{beaker/beaker}
+\nocite{*}
+\bibliographystyle{acm}
+
+\begin{document}
+
+  % Title.
+  \title{On Distributed Transactions}
+  \author{Ashwin Madavan}
+  \maketitle
+
+  % Abstract.
+  \begin{abstract}
+
+  \end{abstract}
+
+  % Table of Contents.
+  \tableofcontents
+
+  % Caustic.
+  \chapter{Caustic: A Transactional Programming Language}
+  \subfile{caustic/caustic}
+
+  % Beaker.
+  \chapter{Beaker: A Distributed, Transactional Database}
+  \subfile{beaker/beaker}
+
+  % Appendix.
+  \appendix
+  \chapter{Caustic}
+  \subfile{caustic/appendix}
+
+  \chapter{Beaker}
+  \subfile{beaker/appendix}
+
+  % References.
+  \printbibliography
+
+\end{document}

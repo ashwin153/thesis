@@ -1,0 +1,158 @@
+\documentclass[../main.tex]{subfiles}
+
+\begin{document}
+
+% Introduction.
+\section{Introduction}
+
+% Consensus.
+\section{Consensus}
+The only certainty in distributed systems is that machines will fail. The key challenge in building
+fault-tolerant distributed systems is constructing reliable systems from unreliable components.
+\cite{reliability} Distributed databases replicate data across a cluster of machines. By storing
+copies in different places, distributed databases are tolerant of individual machine failures.
+
+Replication solves the problem of fault-tolerance, but creates another; the various replicas must be
+kept consistent with each other. A na\"ive approach is to require all replicas to first agree to
+apply any modifications made to the database. This would ensure that all replicas remained
+identical. However, this approach is not fault-tolerant. If any replica were to fail, then no
+modifications could ever be made to the database until it recovered. Instead, fault-tolerant
+distributed databases require only a majority of replicas to reach agreement before modifications
+can be safely applied. This ensures that any majority of replicas will contain at least one that has
+the latest copy of the database while remaining tolerant of a minority of individual machine
+failures. Reaching majority agreement in a distributed system is known as consensus, and it is a
+relatively well-studied problem. In this section, we explore different consensus algorithms
+culminating with the approach taken in Beaker.
+
+  \subsection{Terminology}
+  We define a \textbf{proposal} as a candidate operation on a group of replicas and a
+  \textbf{proposer} as the replica that initiates consensus on a proposal. Over the course of this
+  discussion, we will gradually refine this definition of a proposal until we arrive at the one used
+  by Beaker.
+
+  Replicas communicate by sending messages. We assume that delivered messages cannot be reordered;
+  if message $A$ was delivered before message $B$, then $A$ was sent before $B$. In practice, this
+  assumption is satisfied by most networking protocols including TCP.
+
+  \subsection{Two-Phase Commit}
+  In Two-Phase Commit, the proposer \emph{prepares} a proposal by first acquring locks on a majority
+  of replicas. If it successfully acquires all locks, the proposer informs all replicas to
+  \emph{learn} the proposal. When a proposal is learned, its operation is applied and all locks are
+  subsequently released.
+
+  Two-Phase Commit is not fault-tolerant. If the proposer were to fail after it successfully
+  prepared a proposal but before it requested that it be learned, the locks that it acquired would
+  never be released and no new proposals could ever be learned. We will see in Paxos how we can
+  modify the protocol to guarantee fault-tolerance.
+
+  \subsection{Paxos}
+  Paxos makes two modifications to Two-Phase Commit to address its fault-intolerance. First, it
+  associates each proposal with a monotonically-increasing, globally-unique \textbf{ballot} number.
+  Proposals are totally-ordered and uniquely-identified by their \textbf{ballot}. Each replica
+  keeps track of the latest ballot that it has seen. Second, it introduces an intermediate
+  \emph{accept} phase to the protocol. We will see that this additional phase allows the system to
+  recover from proposer failure. \cite{paxos}
+
+  In Paxos, the proposer prepares a proposal by assigning it a ballot greater than any it has seen
+  and sending it to all replicas. If the ballot is greater than the latest it has seen, a replica
+  \emph{promises} not to accept any proposal less than it and returns any proposal that it has
+  already accepted. Otherwise, the replica ignores the request. Intuitively, ballots function as a
+  kind of a lock that the proposer holds until another proposer prepares a greater ballot. If a
+  majority of replicas do not respond to its prepare request, the proposer retries with a greater
+  ballot. Otherwise, the proposer \emph{selects} a proposal to be accepted. If any replica returned
+  an accepted proposal, then the proposer must select the latest accepted proposal and set its
+  ballot to the one that it prepared. Otherwise, the proposer selects its own proposal. Intuitively,
+  this allows the system to pick up where it left off when a proposer fails after convinced a
+  majority to accept its proposal but before it could be learned. A replica accepts a proposal if
+  and only if it has not promised not to. When a replica accepts a proposal, it requests that all
+  replicas learn it. A replica learns a proposal when a majority of replicas have requested that it
+  be learned. When a replica is learned, its operation is applied and any accepted proposals are
+  removed. Intuitively, this allows the system to reset and begin consensus on another proposal.
+
+  Paxos guarantees that all non-faulty replicas will learn proposals in the same order. Often, this
+  guarantee is unnecessary because a large number of operations on a distributed system are
+  \emph{commutative} and so they may be performed in any order. For example, reads and writes to
+  different keys in a database may be performed in any order without compromising consistency. We
+  will see in Generalized Paxos that we can exploit commutativity to improve the throughput of the
+  system.
+
+  It is known that no deterministic fault-tolerant consensus protocol can guarantee progress in an
+  asynchronous network. \cite{consensus} Paxos is no exception. If a higher ballot is continuously
+  prepared before any proposal can be accepted, no proposal will ever be learned. Implementations of
+  Paxos typically elect a distinguished replica, called a \textbf{leader}, to which all other
+  replicas forward their proposals to guarantee liveness. Whenever leaders fail, replicas run an
+  instance of Paxos to acquire leadership of the cluster. The reliance on the existence of a single,
+  stable leader is both a important simplifying assumption and a performance limitation. If there
+  exists a leader, then prepare messages are superfluous. Intuitively, the leader implicitly holds
+  a lock on all replicas because no other replica can initiate proposals. This allows proposals to
+  be learned in just two message delays. However, the reliance on the leader to initiate all
+  proposals is also a significant bottleneck at scale. The entire system moves at the rate of the
+  leader. In fact, this is the fundamental limitation in implementations of Paxos like ZooKeeper
+  \cite{zookeeper} and Chubby \cite{chubby}. We will see in Egalitarian Paxos that we can remove the
+  dependence on a leader to improve the performance of the system.
+
+  \subsection{Generalized Paxos}
+  Generalized Paxos addresses the scalability of Paxos by exploiting commutativity. An operation
+  $A$ commutes with $B$ if performing $A$ after $B$ has the same effect as performing $B$ after $A$.
+  For example, addition is commutative but division is not; $4 + 3 = 3 + 4$ but $\frac{4}{3} \ne
+  \frac{3}{4}$. In fact, most operations on a distributed database are commutative. Reads commute
+  with each other and reads and writes to different keys commute. \cite{generalized-paxos}
+
+  Generalized Paxos associates each proposal with a sequence of operations. We say that proposal $A$
+  is \emph{equivalent} to proposal $B$ if all non-commutative operations in $A$ and $B$ are in the
+  same order. All equivalent proposals have the same effect. Generalized Paxos permits replicas to
+  learn different proposals as long as they are equivalent.
+
+  In Generalized Paxos, proposers do not forward their requests to leader. Instead, they immediately
+  request that all replicas accept their proposed operation. A replica appends the operation to
+  their currently accepted proposal and requests that all replicas learn it. A proposal is learned
+  when a replica a majority of replicas have requested that it or an equivalent proposal be learned.
+  If no majority of replicas can agree on the ordering of non-commutative operations, it is the
+  responsibility of the leader to select one and to run an instance of Paxos to convince the other
+  replicas to accept its choice before resuming normal operation.
+
+  Like Paxos, Generalized Paxos relies on the existence of a single, stable leader to mediate
+  ordering disagreements between replicas and guarantees that all commutative operations will be
+  learned in two message delays. Unlike Paxos, it does not require all proposals to originate from
+  the leader. If most operations are commutative, the leader will rarely be required to arbitrate.
+  However, the existence of a leader can still be a scalability bottleneck. We will see in
+  Egalitarian Paxos that we can remove the dependence on a leader to improve the performance of the
+  system.
+
+  \subsection{Egalitarian Paxos}
+  Egalitarian Paxos makes a subtle modification to Generalized Paxos to remove its dependence on a
+  leader. Egalitarian Paxos associates with proposal with a directed acyclic graph of operations.
+  The benefit of using a directed acyclic graph is its various strongly connected components can be
+  performed in parallel. This has huge ramifications for performance, particularly in databases
+  because reads and writes are relatively expensive operations. \cite{epaxos}
+
+  In Egalitarian Paxos, an operation depends on all accepted proposals for which it does not
+  commute. The proposer builds a dependency graph for a proposal from any proposals that it has
+  already accepted and requests that all replicas accept it. A replica supplements the dependency
+  graph of the proposal with any proposals that it has accepted and requests that the result be
+  learned. If no majority of replicas can agree on the dependency graph of a proposal, it is the
+  responsibility of the proposer to select one and to run an instance of Paxos to convince the
+  other replicas to accept its choice before resuming normal operation.
+
+  Egalitarian Paxos implicitly assumes that operations are idempotent. An operation $A$ is
+  idempotent if repeated non-sequential applications of $A$ have the same effect as a single
+  application of $A$. For example, multiplication by one is idempotent but by two is not;
+  $4 * 1 = 4 * 1 * 1$ but $4 * 2 \ne 4 * 2 * 2$. We will see how we can modify Egalitarian Paxos to
+  implement a distributed database.
+
+  % Design.
+\section{Design}
+
+  \subsection{Terminology}
+
+  \subsection{Protocol}
+
+  \subsection{Correctness}
+
+% Evaluation.
+\section{Evaluation}
+
+% Conclusion.
+\section{Conclusion}
+
+\end{document}
