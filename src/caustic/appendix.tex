@@ -88,39 +88,4 @@
   \label{table:math}
 \end{table}
 
-\begin{figure}
-\caption{Caustic Distributed Counter}
-\begin{lstlisting}[style=Caustic]
-module caustic.example
-
-/**
-* A count.
-*
-* @param value Current value.
-*/
-record Total {
-value: Int
-}
-
-/**
-* A distributed counter.
-*/
-service Counter {
-
-/**
-* Increments the total and returns its current value.
-*
-* @param x Reference to total.
-* @return Current value.
-*/
-def increment(x: Total&): Int = {
-if (x.value) x.value += 1 else x.value = 1
-x.value
-}
-
-}
-\end{lstlisting}
-\label{figure:counter}
-\end{figure}
-
 \end{document}

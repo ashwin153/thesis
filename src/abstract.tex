@@ -1,0 +1,30 @@
+\documentclass[main.tex]{subfiles}
+
+\begin{document}
+
+% Abstract.
+\begin{abstract}
+  Concurrency is \emph{hard}. Concurrency refers to situations in which multiple programs
+  simultaneously modify shared data. Concurrent programs may be run across threads, processes,
+  and, in the case of distributed systems, networks. Concurrency is challenging because it
+  introduces ambiguity in execution order, and it is precisely this ambiguity that cause a class of
+  failures known as race conditions. Race conditions manifest themselves in subtle ways in
+  concurrent systems, and they can often be difficult to detect and challenging to remove.
+
+  Many programming languages provide fundamental abstractions such as locks, semaphores, and
+  monitors to explicitly deal with race conditions. Some, like Rust~\cite{rust}, go a step further
+  and are able to statically detect race conditions between concurrent threads. But none, however,
+  are able guarantee that race conditions will be completely eliminated from a distributed system.
+  Distributed systems form the computing backbone of nearly every major technology from social
+  networks to video streaming, but their intricate complexity coupled with the inability to detect
+  race conditions makes designing them extremely error-prone.
+
+  In this thesis, we will explore transactional programming and its application to building
+  race-free distributed systems. We will first discuss Caustic, a transactional programming language
+  that allows programs to be safely distributed without any explicit synchronization or
+  coordination. We will show that Caustic requires the underlying storage system to satisfy a
+  minimal contract. We will then discuss Beaker, a distributed, fault-tolerant database that
+  efficiently implements this contract.
+\end{abstract}
+
+\end{document}

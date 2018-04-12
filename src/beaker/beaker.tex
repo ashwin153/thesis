@@ -19,27 +19,27 @@ kept consistent with each other. A na\"ive approach is to require all replicas t
 apply any modifications made to the database. This would ensure that all replicas remained
 identical. However, this approach is not fault-tolerant. If any replica were to fail, then no
 modifications could ever be made to the database until it recovered. Instead, fault-tolerant
-distributed databases require only a majority of replicas to reach agreement before modifications
-can be safely applied. This ensures that any majority of replicas will contain at least one that has
-the latest copy of the database while remaining tolerant of a minority of individual machine
-failures. Reaching majority agreement in a distributed system is known as consensus, and it is a
-relatively well-studied problem. In this section, we explore different consensus algorithms
-culminating with the approach taken in Beaker.
+distributed databases require only that a \textbf{quorum}, or simple majority, of replicas to reach
+agreement before modifications can be safely applied. This ensures that any quorum of replicas will
+contain at least one that has the latest copy of the database while remaining tolerant of a minority
+of individual machine failures. Reaching quorum agreement in a distributed system is known as
+consensus, and it is a relatively well-studied problem. In this section, we explore different
+consensus algorithms culminating with the approach taken in Beaker.
 
   \subsection{Terminology}
-  We define a \textbf{proposal} as a candidate operation on a group of replicas and a
+  We define a \textbf{proposal} as an abstract operation on a group of replicas and a
   \textbf{proposer} as the replica that initiates consensus on a proposal. Over the course of this
   discussion, we will gradually refine this definition of a proposal until we arrive at the one used
-  by Beaker.
+  in Beaker.
 
   Replicas communicate by sending messages. We assume that delivered messages cannot be reordered;
   if message $A$ was delivered before message $B$, then $A$ was sent before $B$. In practice, this
   assumption is satisfied by most networking protocols including TCP.
 
   \subsection{Two-Phase Commit}
-  In Two-Phase Commit, the proposer \emph{prepares} a proposal by first acquring locks on a majority
+  In Two-Phase Commit, the proposer \textbf{prepares} a proposal by first acquring locks on a quorum
   of replicas. If it successfully acquires all locks, the proposer informs all replicas to
-  \emph{learn} the proposal. When a proposal is learned, its operation is applied and all locks are
+  \textbf{learn} the proposal. When a proposal is learned, its operation is applied and all locks are
   subsequently released.
 
   Two-Phase Commit is not fault-tolerant. If the proposer were to fail after it successfully
@@ -52,24 +52,25 @@ culminating with the approach taken in Beaker.
   associates each proposal with a monotonically-increasing, globally-unique \textbf{ballot} number.
   Proposals are totally-ordered and uniquely-identified by their \textbf{ballot}. Each replica
   keeps track of the latest ballot that it has seen. Second, it introduces an intermediate
-  \emph{accept} phase to the protocol. We will see that this additional phase allows the system to
+  \textbf{accept} phase to the protocol. We will see that this additional phase allows the system to
   recover from proposer failure.~\cite{paxos}
 
   In Paxos, the proposer prepares a proposal by assigning it a ballot greater than any it has seen
-  and sending it to all replicas. If the ballot is greater than the latest it has seen, a replica
-  \emph{promises} not to accept any proposal less than it and returns any proposal that it has
-  already accepted. Otherwise, the replica ignores the request. Intuitively, ballots function as a
-  kind of a lock that the proposer holds until another proposer prepares a greater ballot. If a
-  majority of replicas do not respond to its prepare request, the proposer retries with a greater
-  ballot. Otherwise, the proposer \emph{selects} a proposal to be accepted. If any replica returned
-  an accepted proposal, then the proposer must select the latest accepted proposal and set its
-  ballot to the one that it prepared. Otherwise, the proposer selects its own proposal. Intuitively,
-  this allows the system to pick up where it left off when a proposer fails after convinced a
+  and sending its ballot to a quorum of replicas. If the ballot is greater than any it has seen, a
+  replica \textbf{promises} not to accept any proposal less than it and returns any proposal that it
+  has already accepted. Otherwise, the replica ignores the request. Intuitively, ballots function as
+  a kind of implicit lock that the proposer holds until another proposer prepares a greater ballot.
+  If a majority of replicas do not respond to its prepare request, the proposer retries with a
+  greater ballot. Otherwise, the proposer selects a proposal to be accepted. If any replica
+  returned an accepted proposal, then the proposer must select the latest accepted proposal and set
+  its ballot to the one that it prepared. Otherwise, the proposer selects its own proposal.
+  Intuitively, this allows the system to recover when a proposer fails after convinced a
   majority to accept its proposal but before it could be learned. A replica accepts a proposal if
   and only if it has not promised not to. When a replica accepts a proposal, it requests that all
   replicas learn it. A replica learns a proposal when a majority of replicas have requested that it
   be learned. When a replica is learned, its operation is applied and any accepted proposals are
-  removed. Intuitively, this allows the system to reset and begin consensus on another proposal.
+  removed. Intuitively, this releases the implicit lock held by the proposer and consensus to begin
+  on another proposal.
 
   Paxos guarantees that all non-faulty replicas will learn proposals in the same order. Often, this
   guarantee is unnecessary because a large number of operations on a distributed system are
@@ -101,7 +102,7 @@ culminating with the approach taken in Beaker.
   commute.
 
   Generalized Paxos associates each proposal with a sequence of operations. We say that proposal $A$
-  is \emph{equivalent} to proposal $B$ if all non-commutative operations in $A$ and $B$ are in the
+  is \textbf{equivalent} to proposal $B$ if all non-commutative operations in $A$ and $B$ are in the
   same order. All equivalent proposals have the same effect. Generalized Paxos permits replicas to
   learn different proposals as long as they are equivalent.
 
@@ -136,83 +137,238 @@ culminating with the approach taken in Beaker.
   responsibility of the proposer to select one and to run an instance of Paxos to convince the
   other replicas to accept its choice before resuming normal operation.
 
-  Egalitarian Paxos implicitly assumes that operations are idempotent. An operation $A$ is
-  idempotent if repeated non-sequential applications of $A$ have the same effect as a single
-  application of $A$. For example, multiplication by one is idempotent but by two is not;
-  $4 * 1 = 4 * 1 * 1$ but $4 * 2 \ne 4 * 2 * 2$. We will see how we can modify Egalitarian Paxos to
-  implement a distributed database.
+  Egalitarian Paxos implicitly assumes that operations are idempotent, because an operation may be
+  in the dependency graph of multiple proposals. An operation $A$ is idempotent if repeated
+  non-sequential applications of $A$ have the same effect as a single application of $A$. For
+  example, multiplication by one is idempotent but by two is not; $4 * 1 = 4 * 1 * 1$ but
+  $4 * 2 \ne 4 * 2 * 2$. This assumption will become important when we use Egalitarian Paxos to
+  implement distributed transactions.
 
-% Design.
-\section{Design}
-
-  % Assumptions.
-  \subsection{Assumptions}
+% Distributed Transactions.
+\section{Distributed Transactions}
+We now use Egalitarian Paxos to implement distributed transactions. We begin by concretely
+defining the underlying system. We then describe the consensus protocol and conclude with a rough
+proof of correctness.
 
   % Terminology.
   \subsection{Terminology}
+  A \textbf{database} is a key-value store that supports two operations: \textbf{read} and
+  \textbf{write}. Databases guarantee durability; if a key is written, then subsequent reads will
+  always return the updated value. Like Caustic, we will associate each key with a
+  \textbf{revision}, or versioned value, with the same conflict relationship as before. Reads and
+  writes on the database return or update the revisions of a set of keys. Operations on a database
+  are non-transactional and can fail arbitrarily.
+
+  We define our abstract operation as a \textbf{transaction}. A transaction is composed of a set
+  of dependent versions, called its \textbf{readset}, and a set of updates, called its
+  \textbf{writeset}. We say that two transactions \textbf{conflict} if there exists a key in the
+  readset or writeset of either transaction that is in the writeset of the other. Transactions are
+  idempotent; if a transactions changes a key for which there exists a newer revision in the
+  database, the key is removed from its writeset. This ensures that transactions cannot undo the
+  effects of other transactions. We say that a transaction is \textbf{committable} if it reads and
+  writes the latest revisions.
+
+  A \textbf{cache} is a write-through database. Because dependencies are validated on commit, keys
+  may be speculatively read from cache without sacrificing consistency. Beaker supports multi-level
+  cache hierarchies over the underlying database. Revisions may be \textbf{fetched} or
+  \textbf{updated} in cache. Cache coherency is maintained by updating the cache whenever
+  transactions are committed on the underlying database.
+
+  An \textbf{archive} is a transactional database. Archives use an \textbf{executor} to linearize
+  conflicting transactions on the underlying database. An executor schedules transactions in
+  \textbf{epochs}. Transactions are scheduled in the earliest epoch such that they do not conflict
+  with any transaction in a later epoch. This guarantees consistency and isolation; transactions
+  see the effect of any previously committed conflicting transaction and conflicting transactions
+  are never committed simultaneously.
+
+  We define our replica as a \textbf{beaker}. Beakers use a variation of Egalitarian Paxos to
+  coordinate distributed transactions with several desirable properties. First, non-conflicting
+  transactions may be simultaneously committed. Second, databases with stale revisions are
+  automatically repaired. Third, transactions may be committed as long as at least a majority of
+  beakers are operational.
 
   % Protocol.
   \subsection{Protocol}
+  Beaker makes two key modifications to Egalitarian Paxos. First, it associates each proposal with
+  a set of non-conflicting transactions, called its \textbf{commits}, and a set of revisions,
+  called its \textbf{repairs}. We say that a proposal $A$ \textbf{conflicts} with a proposal $B$ if
+  they have any conflicting commits. We say that a proposal $A$ is \textbf{equivalent} to proposal
+  $B$ if their commits are the same. A proposal $A$ may be \textbf{merged} with a proposal $B$ by
+  taking the maximum of their ballots, combining their commits choosing the transaction in the
+  newer proposal in the case of conflicts, and combining their repairs choosing the highest
+  revision in the case of duplicates. Second, it introduces an intermediate \textbf{get} phase to
+  the protocol. We will see that this additional phase allows the system to repair databases with
+  stale revisions.
+
+  In Beaker, the proposer prepares a proposal by sending it to all beakers. If a beaker has not
+  made a promise to a newer proposal, it responds with a promise not to accept any proposal that
+  conflicts with the proposal it returns. If it has already accepted any conflicting proposals, it
+  merges them together and returns the result. Otherwise, it returns the prepared proposal with a
+  zero ballot. If the proposer does not receive a majority of promises, it retries with a higher
+  ballot. Otherwise, it merges the returned promises together into a single proposal. If the
+  merged proposal is not equivalent to its prepared proposal, the proposer retries with a higher
+  ballot. Otherwise, the proposer gets the revisions of all keys that are read by the proposal
+  from a majority of beakers. The proposer discards all transactions that cannot be committed
+  given the latest returned revisions and sets the repairs of the proposal to the latest revisions
+  of keys that are read - but not written - by the proposal for which any two beakers have
+  different revisions. The proposer then requests all beakers to accept the proposal. A
+  beaker accepts a proposal if it has not promised not to. If a beaker accepts a proposal, it
+  requests that all other beakers learn the proposal. A beaker learns a proposal when a majority
+  of beakers have requested that it be learned. When a beaker learns a proposal, it commits its
+  transactions and repairs on its archive.
 
   % Correctness.
   \subsection{Correctness}
+  We will make the assumption of \textbf{connectivity}; all learn messages are always delivered.
+  This ensures that the proposer will always learn that its proposal was learned. This is a
+  necessary requirement because it allows clients to know with certainty whether or not their
+  transaction was committed. In practice, this assumption can be weakened by adding an additional
+  decide phase to the protocol. Whenever a proposal is learned by a beaker, it informs all other
+  beakers that the proposal was decided. As long as at least one beaker receives a majority of
+  learn messages and at least one decide message is delivered to each beaker, any proposer is
+  guaranteed to learn that its proposal was learned. A proposal is learned by a beaker when it
+  receives either a majority of learn requests or a decide message. The decide phase introduces
+  additional partition tolerance and comes at no additional cost if the network is perfectly
+  reliable. It does, however, increase the number of messages sent between beakers which could
+  saturate the network. The assumption of connectivity is reasonable if beakers are co-located in
+  the same data center, but is unreasonable if they are geographically separated.
+
+  We will also make the assumption of \textbf{reliability}; at least a majority of beakers will
+  successfully apply every learned proposal. This ensures that any majority of beakers will
+  contain at least one that has the latest revision of each key-value pair.
+
+  We will also make use of the fact of \textbf{quorum intersection}; any two majorities of beakers
+  must have at least one in common. Verification of this property is trivial and is left to the
+  reader. \\
 
   \begin{theorem}[Liveness]
-    An accepted proposal $A$ will eventually be learned.
+    Any proposal $A$ that is accepted by a majority will eventually be learned by everyone.
   \end{theorem}
   \begin{proof}
-    By majority intersection, at least one promise will contain $A$. Therefore, $A$ must be proposed
-    enough beakers learn $A$ such that $A$ is no longer accepted by a majority. By assumption of
-    connectivity, if any beaker learns a proposal then all beakers will eventually learn it.
+    By quorum intersection, at least one promise will contain $A$ until $A$ has been learned by
+    sufficiently many beakers that it no longer has been accepted by a majority. But if $A$ was
+    learned by any beaker, at least a majority of beakers must have requested that it be learned.
+    By connectivity, if a majority of beakers requested that $A$ be learned then all beakers will
+    learn $A$. Therefore, $A$ will eventually be learned by everyone.
   \end{proof}
 
-  \begin{theorem}[Linearizability]
-    If a proposal $A$ is accepted, then any conflicting proposal $B$ that is accepted after $A$ will
-    be learned after $A$.
+  Note that we guarantee only that a proposal will eventually be learned once it has been accepted
+  by a majority, but we do not guarantee that a proposal will ever accepted by a majority. It is
+  possible for proposers to continuously prepare higher ballot proposals before any can be
+  accepted by a majority. In practice, by retrying with exponentially jittered backoffs the
+  likelihood of such an event asymptotically approaches zero. \\
+
+  \begin{theorem}[Serializability]
+    If proposal $A$ is accepted by a majority, then any conflicting proposal $B$ that is
+    subsequently prepared will always be learned after $A$.
   \end{theorem}
   \begin{proof}
-    Because $A$ was accepted before $B$, the majority that accepted $A$ before $B$ will request that
-    a $A$ be learned before $B$. Because messages are delivered in order, $A$ will be learned before
-    $B$.
+    Because $A$ was accepted by a majority before $B$, the majority that accepted $A$ before $B$
+    will request that $A$ be learned before $B$. Because messages are always delivered in order
+    and by connectivity, $B$ will always be learned after $A$.
   \end{proof}
 
-  \begin{theorem}[Commutativity]
-    Let $R$ denote the repairs for an accepted proposal $A$. Any accepted proposal $B$ that
-    conflicts with $A + R$ but not $A$ commutes with $A + R$.
+  \begin{theorem}[Commutativity of Repairs]
+    Let $R$ denote the repairs for an accepted proposal $A$. Any proposal $B$ that is accepted by
+    majority and conflicts with $A + R$ but not $A$ commutes with $A + R$.
   \end{theorem}
   \begin{proof}
-    Because $B$ conflicts with $A + R$ but not $A$, $B$ must read a key $k$ that is read by $A$. By
-    linearizability, $B$ must read the latest version of $k$ because $B$ is accepted. Suppose that
-    $B$ is committed first. Because $B$ reads and does not write $k$, $A + R$ can still be
-    committed. Suppose that $A + R$ is committed first. Because $A + R$ writes the latest version of
-    $k$ and $B$ reads the latest version, $B$ can still be committed.
+    Because $B$ conflicts with $A + R$ but not $A$, $B$ must read a key $k$ that is read by $A$.
+    By reliability, $B$ must read the latest version of $k$. Suppose that $B$ is committed first.
+    Because $B$ reads and does not write $k$, $A + R$ can still be committed. Suppose that
+    $A + R$ is committed first. Because $A + R$ writes the latest version of $k$ and $B$ reads the
+    latest version, $B$ can still be committed. Therefore, $B$ commutes with $A + R$.
   \end{proof}
 
   \begin{theorem}[Consistency]
-    If a proposal $A$ is accepted, it can be committed.
+    If a proposal $A$ is accepted by a majority, its transactions are committable.
   \end{theorem}
   \begin{proof}
     Suppose there exists a transaction that cannot be committed. Then, the transaction must read a
     key for which there exists a newer version. This implies that there exists a proposal $B$ that
-    was accepted after but learned before $A$ that changes a key $k$ that is read by $A$. By
-    linearizability, $B$ cannot conflict with $A$. Therefore, $B$ must repair $k$. By commutativity,
-    $A$ may still be committed.
+    was accepted by a majority after, but learned before $A$ that changes a key $k$ that is read
+    by $A$. By serializability, $B$ cannot conflict with $A$. Therefore, $B$ must repair $k$. By
+    commutativity of repairs, $A$ may still be committed.
   \end{proof}
 
-  % Implementation.
-  \subsection{Implementation}
+  % Reconfiguration.
+  \subsection{Reconfiguration}
+  In practical systems, beakers may join or leave the cluster arbitrarily as the cluster grows or
+  shrinks in size. In this section, we describe how beakers are bootstrapped when they join an
+  existing cluster. We say that a beaker is \textbf{fresh} when it initially joins a cluster. In
+  order to guarantee correctness, fresh beakers must be immediately populated with the latest
+  revision of every key-value pair. Otherwise, if $N + 1$ fresh beakers join a cluster of size $N$
+  it is possible for a majority of beakers to consist entirely of fresh beakers. This violates the
+  assumption of reliability.
 
-    % Reconfiguration.
-    \subsubsection{Reconfiguration}
+  A naive solution might be for the fresh beaker to propose a read-only transaction that depends on
+  the initial revision of every key-value pair in the database and conflicts with every other
+  proposal. Then, the fresh beaker would automatically repair itself in the process of committing
+  this transaction. However, this is infeasible in practical systems because databases may contain
+  arbitrarily many key-value pairs. This approach would inevitably saturate the network.
+  Furthermore, it prevents any proposals from being accepted in the interim.
 
-    % Caching.
-    \subsubsection{Caching}
+  We can improve this solution by decoupling bootstrapping and consensus. A fresh beaker joins the
+  cluster as a partial member, called a \textbf{learner}, that learns proposals, but is not involved
+  in consensus. The fresh beaker \textbf{scans} a majority of full members, called
+  \textbf{acceptors}, and repairs its own archive with the latest returned values. By assumption of
+  reliability, it is guaranteed to have the latest value of every key. It then joins the cluster as
+  an acceptor. This approach consumes less bandwidth and permits concurrent proposals.
+
+  Each beaker maintains its own view of the cluster configuration which it sends alongside any
+  proposal that it proposes. If the view is outdated, beakers inform the proposer of the new
+  configuration. If a beaker has already accepted a proposal from an outdated view, that proposal
+  must be completed before the cluster can move to a new configuration. This ensures that
+  reconfiguration is consistent across the cluster.
 
 % Evaluation.
 \section{Evaluation}
 
   % Contention.
   \subsection{Contention}
+  In this section, we examine the performance of Beaker under contention both from a theoretical
+  and a practical perspective. We begin with a mathematical treatment of consensus and conclude with
+  an empirical verification of our analysis.
+
+  We may model the number of retries required to successfully commit a transactions as a negative
+  binomial distribution. A negative binomial distribution $NB(p, r)$ measures the number of
+  successful events each occurring with probability $p$ before $r$ failures are encountered. In
+  this case, $p$ represents the \textbf{contention probability}, or the likelihood that any two
+  concurrent transactions conflict. Therefore, the distribution of total attempts required to
+  successfully commit any transaction as $A \sim 1 + NB(p, 1)$. We may then use known results about
+  the negative binomial distribution to make predictions about the how the system will behave under
+  contention.
+
+  We must first make concrete our definition of contention probability. Consider two sets $X$ and
+  $Y$ of size $l$ selected uniformly at random from the set [0, n). The contention probability is
+  the likelihood that $X$ and $Y$ are not disjoint. Intuitively, the probability that $X$ and $Y$
+  are disjoint is equal to the likelihood that $Y$ is drawn from the set $[0, n) / X$. Therefore,
+  the probability that $X$ and $Y$ are not disjoint is equal to $1 - C(n - 1, l) / C(n, l)$ where
+  $C(a, b)$ is the number of ways to choose $b$ items from a set of size $a$. We may extend this
+  notion of uniformly random sets to uniformly random transactions. Suppose two transactions $T_1$
+  and $T_2$ each modify $l$ keys chosen uniformly at random from a key space of size $n$. The
+  probability that they will conflict is exactly equal to the probability that $X$ and $Y$ are not
+  disjoint. Crucially, defining contention probability in this manner allows us to analyze
+  performance under contention relative to performance in isolation because both benchmarks are
+  defined only in terms of transaction size.
+
+  To verify that this theoretical definition of contention probability matches empirical results I
+  conducted a Monte Carlo simulation in which two threads repeatedly generate and commit $M$
+  transactions that increment a uniformly random set of $l$ keys and monitor the total number of
+  failures. If the hypothesis about the negative binomial distribution is correct, transactions
+  should conflict on average $p * M$ times. I found this to be empirically validated, but the reader
+  is encouraged to verify this claim for themselves.
+
+  We assume for the sake of simplicity that there exist exactly two proposers that are
+  simultaneously committing transactions. In practice, most systems will have many more active
+  proposers. Unfortunately, I lack the mathematical acumen to analytically derive contention
+  probability in the general case. However, the contention probability may be numerically
+  approximated in the general case by changing the number of threads in the Monte Carlo simulation.
+
+  We may use our empirically verified model of contention to make predictions about the performance
+  degradation of the system under varying degrees of contention. Given a key-space of size $n$ and
+  an average transaction of size $l$, we would expect $1 + \frac{p}{1 - p}$ attempts on average to
+  commit each transaction and the average throughput of the system to decrease by the same amount.
 
 % Conclusion.
 \section{Conclusion}
