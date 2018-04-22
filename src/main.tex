@@ -1,14 +1,15 @@
 \documentclass[12pt]{report}
 
 % Packages.
-\usepackage{amsmath}
-\usepackage{amssymb}
-\usepackage{amsthm}
+\usepackage{a4wide}
+\usepackage{amsmath, amssymb, amsthm}
 \usepackage[backend=biber]{biblatex}
 \usepackage{graphicx}
 \usepackage{listings, lstautogobble}
 \usepackage{hyperref}
 \usepackage[parfill]{parskip}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
 \usepackage{subfiles}
 \usepackage{textcomp}
 \usepackage{xcolor}
@@ -29,7 +30,12 @@
   moredelim=*[s][\color{black}\ttfamily]{options}{\}},
   commentstyle={\color{gray}\itshape},
   morecomment=[l]{//},
-  emph={def, del, elif, else, extends, if, import, module, record, return, rollback, service, while, var},
+  morecomment=[s]{/**}{*/},
+  emph={
+    def, del, elif, else, extends, if,
+    import, module, return, rollback,
+    service, struct, while, var
+  },
   emphstyle={\color{blue}\ttfamily},
   alsoletter={:,|,;},
   morekeywords={:,|,;},
@@ -43,6 +49,7 @@
   moredelim=*[s][\color{black}\ttfamily]{options}{\}},
   commentstyle={\color{gray}\itshape},
   morecomment=[l]{//},
+  morecomment=[s]{/**}{*/},
   emph={
     abstract, case, catch,
     char, class,
@@ -73,6 +80,14 @@
 
 \newtheorem{theorem}{Theorem}
 
+\pgfplotsset{
+  every axis/.append style={
+    legend style={font=\tiny},
+    label style={font=\tiny},
+    tick label style={font=\tiny}
+  }
+}
+
 % Bibliography.
 \bibliography{caustic/caustic}
 \bibliography{beaker/beaker}
@@ -82,8 +97,14 @@
 \begin{document}
 
 % Title.
-\title{On Transactional Programming}
-\author{Ashwin Madavan}
+\title{On Transactional Programming\vspace{-2ex}}
+\author{
+  Ashwin Madavan\\
+  \texttt{ashwin.madavan@gmail.com}
+  \and
+  Christopher J. Rossbach\\
+  \textt{rossbach@cs.utexas.edu}
+}
 \maketitle
 
 % Abstract.
@@ -102,10 +123,10 @@
 
 % Appendix.
 \appendix
-\chapter{Caustic}
+\chapter{Caustic Addemdum}
 \subfile{caustic/appendix}
 
-\chapter{Beaker}
+\chapter{Beaker Addemdum}
 \subfile{beaker/appendix}
 
 % References.

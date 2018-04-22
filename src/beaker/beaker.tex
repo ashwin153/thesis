@@ -74,7 +74,7 @@ consensus algorithms culminating with the approach taken in Beaker.
 
   Paxos guarantees that all non-faulty replicas will learn proposals in the same order. Often, this
   guarantee is unnecessary because a large number of operations on a distributed system are
-  commutative and so they may be performed in any order. For example, reads and writes to different
+  commutative, so they may be performed in any order. For example, reads and writes to different
   keys in a database may be performed in any order without compromising consistency. We will see in
   Generalized Paxos that we can exploit commutativity to improve performance.
 
@@ -109,7 +109,7 @@ consensus algorithms culminating with the approach taken in Beaker.
   In Generalized Paxos, proposers do not forward their requests to leader. Instead, they immediately
   request that all replicas accept their proposed operation. A replica appends the operation to
   their currently accepted proposal and requests that all replicas learn it. A proposal is learned
-  when a replica a majority of replicas have requested that it or an equivalent proposal be learned.
+  when a majority of replicas have requested that it or an equivalent proposal be learned.
   If no majority of replicas can agree on the ordering of non-commutative operations, it is the
   responsibility of the leader to select one and to run an instance of Paxos to convince the other
   replicas to accept its choice before resuming normal operation.
@@ -125,9 +125,10 @@ consensus algorithms culminating with the approach taken in Beaker.
   \subsection{Egalitarian Paxos}
   Egalitarian Paxos~\cite{epaxos} makes a subtle modification to Generalized Paxos to remove its
   dependence on a leader. Egalitarian Paxos associates with proposal with a directed acyclic graph
-  of operations. The benefit of using a directed acyclic graph is its various strongly connected
-  components can be performed in parallel. This has huge ramifications for performance, particularly
-  in databases because reads and writes are relatively expensive operations.
+  of operations in which each edge corresponds to a dependency between two operations. The benefit
+  of using a directed acyclic graph is that its various strongly connected components can be
+  performed in parallel without impacting consistency. This has huge ramifications for performance,
+  particularly in databases because reads and writes are relatively expensive operations.
 
   In Egalitarian Paxos, an operation depends on all accepted proposals for which it does not
   commute. The proposer builds a dependency graph for a proposal from any proposals that it has
@@ -153,8 +154,8 @@ proof of correctness.
   % Terminology.
   \subsection{Terminology}
   A \textbf{database} is a key-value store that supports two operations: \textbf{read} and
-  \textbf{write}. Databases guarantee durability; if a key is written, then subsequent reads will
-  always return the updated value. Like Caustic, we will associate each key with a
+  \textbf{write}. Databases guarantee durability; if a key is written, then subsequent
+  reads will always return the updated value. Like Caustic, we will associate each key with a
   \textbf{revision}, or versioned value, with the same conflict relationship as before. Reads and
   writes on the database return or update the revisions of a set of keys. Operations on a database
   are non-transactional and can fail arbitrarily.
@@ -162,11 +163,11 @@ proof of correctness.
   We define our abstract operation as a \textbf{transaction}. A transaction is composed of a set
   of dependent versions, called its \textbf{readset}, and a set of updates, called its
   \textbf{writeset}. We say that two transactions \textbf{conflict} if there exists a key in the
-  readset or writeset of either transaction that is in the writeset of the other. Transactions are
-  idempotent; if a transactions changes a key for which there exists a newer revision in the
-  database, the key is removed from its writeset. This ensures that transactions cannot undo the
-  effects of other transactions. We say that a transaction is \textbf{committable} if it reads and
-  writes the latest revisions.
+  readset or writeset of either transaction that is in the writeset of the other. A transaction may
+  be \textbf{committed} on a database by applying the updates in its writeset if and only it
+  depends on the latest version of every key in its readset. We say that a transaction is
+  \textbf{committable} if it can be committed. In order to guarantee idempotency of commit, any key
+  in the writeset of a transaction must also be present in its readset.
 
   A \textbf{cache} is a write-through database. Because dependencies are validated on commit, keys
   may be speculatively read from cache without sacrificing consistency. Beaker supports multi-level
@@ -233,9 +234,13 @@ proof of correctness.
   saturate the network. The assumption of connectivity is reasonable if beakers are co-located in
   the same data center, but is unreasonable if they are geographically separated.
 
-  We will also make the assumption of \textbf{reliability}; at least a majority of beakers will
-  successfully apply every learned proposal. This ensures that any majority of beakers will
-  contain at least one that has the latest revision of each key-value pair.
+  We will also make the assumption of \textbf{reliability}; at least a majority of replicas will
+  atomically apply each learned proposal. This ensures that any majority of replicas will
+  contain at least one that has the latest revision of each key-value pair. Our assumption of
+  reliability is substantially weaker than the one implicitly made by the previously presented Paxos
+  algorithms; they assume that a majority of replicas atomically apply \emph{every} learned
+  proposal. We will see that consistency is guaranteed even if no replica has applied every learned
+  proposal.
 
   We will also make use of the fact of \textbf{quorum intersection}; any two majorities of beakers
   must have at least one in common. Verification of this property is trivial and is left to the
@@ -269,8 +274,8 @@ proof of correctness.
   \end{proof}
 
   \begin{theorem}[Commutativity of Repairs]
-    Let $R$ denote the repairs for an accepted proposal $A$. Any proposal $B$ that is accepted by
-    majority and conflicts with $A + R$ but not $A$ commutes with $A + R$.
+    Let $R$ denote the repairs for a proposal $A$ that has been accepted by a majority. Any proposal
+    $B$ that is accepted by majority and conflicts with $A + R$ but not $A$ commutes with $A + R$.
   \end{theorem}
   \begin{proof}
     Because $B$ conflicts with $A + R$ but not $A$, $B$ must read a key $k$ that is read by $A$.
@@ -332,7 +337,7 @@ proof of correctness.
 
   We may model the number of retries required to successfully commit a transactions as a negative
   binomial distribution. A negative binomial distribution $NB(p, r)$ measures the number of
-  successful events each occurring with probability $p$ before $r$ failures are encountered. In
+  failed events each occurring with probability $p$ before $r$ successes are encountered. In
   this case, $p$ represents the \textbf{contention probability}, or the likelihood that any two
   concurrent transactions conflict. Therefore, the distribution of total attempts required to
   successfully commit any transaction as $A \sim 1 + NB(p, 1)$. We may then use known results about
@@ -342,15 +347,13 @@ proof of correctness.
   We must first make concrete our definition of contention probability. Consider two sets $X$ and
   $Y$ of size $l$ selected uniformly at random from the set [0, n). The contention probability is
   the likelihood that $X$ and $Y$ are not disjoint. Intuitively, the probability that $X$ and $Y$
-  are disjoint is equal to the likelihood that $Y$ is drawn from the set $[0, n) / X$. Therefore,
-  the probability that $X$ and $Y$ are not disjoint is equal to $1 - C(n - 1, l) / C(n, l)$ where
-  $C(a, b)$ is the number of ways to choose $b$ items from a set of size $a$. We may extend this
-  notion of uniformly random sets to uniformly random transactions. Suppose two transactions $T_1$
-  and $T_2$ each modify $l$ keys chosen uniformly at random from a key space of size $n$. The
-  probability that they will conflict is exactly equal to the probability that $X$ and $Y$ are not
-  disjoint. Crucially, defining contention probability in this manner allows us to analyze
-  performance under contention relative to performance in isolation because both benchmarks are
-  defined only in terms of transaction size.
+  are disjoint is equal to the likelihood that $Y$ is drawn from the set $[0, n) \setminus X$.
+  Therefore, the probability that $X$ and $Y$ are not disjoint is equal to
+  $1 - \frac{C(n - 1, l)}{C(n, l)}$ where $C(a, b)$ is the number of ways to choose $b$ items from a
+  set of size $a$. We may extend this notion of uniformly random sets to uniformly random
+  transactions. Suppose two transactions $T_1$ and $T_2$ each write $l$ keys chosen uniformly at
+  random from a key space of size $n$. The probability that they will conflict is exactly equal to
+  the probability that $X$ and $Y$ are not disjoint.
 
   To verify that this theoretical definition of contention probability matches empirical results I
   conducted a Monte Carlo simulation in which two threads repeatedly generate and commit $M$
@@ -367,8 +370,9 @@ proof of correctness.
 
   We may use our empirically verified model of contention to make predictions about the performance
   degradation of the system under varying degrees of contention. Given a key-space of size $n$ and
-  an average transaction of size $l$, we would expect $1 + \frac{p}{1 - p}$ attempts on average to
-  commit each transaction and the average throughput of the system to decrease by the same amount.
+  an average transaction of size $l$, we would expect each transaction to require
+  $\mathbb{E}[A] = 1 + \frac{p}{1 - p}$ attempts and for the average throughput of the system to
+  decrease by the same amount.
 
 % Conclusion.
 \section{Conclusion}
