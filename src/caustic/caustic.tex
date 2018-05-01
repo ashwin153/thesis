@@ -1,69 +1,64 @@
 \documentclass[../main.tex]{subfiles}
 
 \begin{document}
-In this chapter, we will discuss Caustic. Caustic is a transactional programming language that
-allows programs to be written as if they were single-threaded applications, but permits them to be
-distributed arbitrarily without error. We first motivate transactional programming by
-discussing concurrency and the various techniques that are typically used to deal with it. We
-then discuss the various components of Caustic: a \textbf{runtime} that executes programs, a
-\textbf{standard library} that simplifies program construction, and a \textbf{compiler} that
-simplifies program expression. We conclude with an evaluation of the programmability and
-performance of the language.
+Caustic is a transactional programming language for building race-free distributed systems. It
+allows programmers to write applications as if they were single-threaded, but distribute them
+arbitrarily without error.
 
-% Concurrency.
-\section{Concurrency}
-Concurrency is \emph{hard}. Concurrency refers to situations in which multiple programs
-simultaneously modify shared data. Concurrent programs may be run across threads, processes,
-and, in the case of distributed systems, networks. Concurrency is challenging because it
-introduces ambiguity in execution order, and it is precisely this ambiguity that causes a class of
-failures known as race conditions.
+In Section 1, we motivate the design of Caustic through a discussion of race conditions. In Section
+2, we discuss the runtime and the various optimizations that allow it to efficiently and
+transactionally execute programs. In Section 3, we extend the functionality of the runtime in a
+robust, statically-typed Scala DSL called the standard library. In Section 4, we address
+the syntactic limitations of the standard library by introducing the Caustic programming language
+and its associated compiler.
 
-Race conditions may occur whenever the order in which concurrent programs are executed affects their
-outcome. For example, suppose there exist two programs $A$ and $B$ that each increment a shared
-counter $x$. Formally, each program reads the current value of $x$ and then writes $x + 1$. If
-$B$ reads \emph{after} $A$ writes, then $B$ reads $x + 1$ and writes $x + 2$. However, if $B$ reads
-\emph{before} $A$ writes but after $A$ reads, then both $A$ and $B$ will read $x$ and write $x + 1$.
-This is an example of a race condition, because the value of the counter $x$ after both $A$ and $B$
-have completed depends on the order in which $A$ and $B$ are executed. This race condition may seem
-relatively benign, but it can have catastrophic consequences in practical systems. Suppose the value
-of $x$ corresponded to your bank balance. What if your bank determined your balance differently
-depending on the order in which deposits are made? Race conditions manifest themselves in subtle
-ways in concurrent systems, and they can often be difficult to detect and challenging to remove.
+% Race Conditions.
+\section{Race Conditions}
+\textbf{Race conditions} occur whenever the order in which concurrent programs are executed affects
+their outcome. For example, suppose there exist two programs $A$ and $B$ that each increment a
+shared counter $x$. Formally, each program reads the current value of $x$ and then writes $x + 1$.
+If $B$ reads \emph{after} $A$ writes, then $B$ reads $x + 1$ and writes $x + 2$. However, if $B$
+reads \emph{before} $A$ writes but after $A$ reads, then both $A$ and $B$ will read $x$ and write
+$x + 1$. This is an example of a race condition, because the value of $x$ after both
+$A$ and $B$ have \emph{completed} depends on the order in which $A$ and $B$ are \emph{executed}.
+Race conditions may seem relatively benign, but they can have catastrophic consequences in practical
+systems. Suppose the value of $x$ corresponded to your bank balance. What if your bank determined
+your balance differently depending on the order in which deposits are made?
 
 Before introducing mechanisms to deal with race conditions, we must first define the necessary and
-sufficient criteria that any such mechanism must satisfy to correctly mitigate them. Race conditions
-are a relatively well-studied problem in database literature, and we may draw upon known results
-from the field to define four properties of race-free programs.~\cite{transactions} We will
-hereafter refer to anything that satisfies these properties as \textbf{transactional}.
+sufficient criteria that any such mechanism must satisfy. Race conditions are a relatively
+well-studied problem in database literature, and we may draw upon known results from the field to
+define four properties of race-free programs.~\cite{transactions} We will hereafter refer to
+any system that satisfies these properties as \textbf{transactional}.
 
 \begin{itemize}
-  \item \textbf{Atomic}: Programs are all-or-nothing; they are never partially applied.
+  \item \textbf{Atomic}: Programs never partially complete.
   \item \textbf{Consistent}: Programs see the effect of all completed programs.
-  \item \textbf{Isolated}: Programs cannot see the effect of in-progress programs.
+  \item \textbf{Isolated}: Programs cannot see the effect of executing programs.
   \item \textbf{Durable}: The effects of completed programs are permanently visible.
 \end{itemize}
 
   % Transactional Databases.
   \subsection{Transactional Databases}
-  A simple approach to dealing with race conditions is to use a transactional database. Programs
-  perform any accesses and modifications to shared data within a transaction that is then executed
-  on the underlying database.
+  We begin our discussion of transactional systems with the same databases that we used to formalize
+  their definition. Over the past few decades, transactional databases have made incredible advances
+  in performance and scalability. While they provide the necessary guarantees on which correct
+  distributed systems can be built, their query languages are not suitable for general-purpose
+  programming for the following reasons.
 
-  While transactional databases provide the necessary guarantees on which correct distributed
-  systems can be built, their collective lack of a robust and uniform query language makes it all
-  but impossible to design non-trivial applications. Recent years have marked a proliferation
-  in NoSQL databases that scale well by shedding functionality. These databases were not popularized
-  because of their query languages, they were \emph{in spite} of them. Some, like Cassandra and
-  Aerospike, attempt to mimic the relational semantics of SQL, but they fall short of implementing
-  the entire SQL specification. Others, like MongoDB and DynamoDB, implement entirely new query
-  languages. Relational databases like MySQL and PostgreSQL that each claim to implement the same
-  SQL specification actually support incompatible subsets of its functionality. Christopher Date,
-  one of the fathers of relational databases, criticized SQL for its lack of a canonical
-  implementation and its ambiguous and often unintuitive syntax.~\cite{sql} Stark differences
-  between query languages tightly couples storage systems and the programs that are run on them, and
-  makes the choice of database in an application effectively permanent. Programmers can recover some
-  degree of interoperability by using an object-relational mapping (ORM). However, these ORMs often
-  have unintuitive syntax and poor performance.
+  First, the absence of a standard query language tightly couples a database to the programs that
+  are run on it. Relational databases, like MySQL and PostgreSQL, claim to implement the same SQL
+  specification, but only support incompatible subsets of its functionality. Some NoSQL
+  databases, like Cassandra and Aerospike, attempt to mimic SQL, but most implement their own
+  bespoke interfaces. Stark differences between query languages makes it all but impossible to
+  design general-purpose algorithms.
+
+  Second, these query languages are lacking in functionality and programmability. Query languages
+  are usually designed to access and modify data, but not to perform intermediate computation. For
+  this reason, fundamental abstractions, like objects and variables, that programmers have come to
+  rely on are glaringly absent in most query languages. Christopher Date, one of the fathers of
+  relational databases, criticized SQL for its ambiguous and often unintuitive syntax.~\cite{sql}
+  NoSQL databases are far worse, because they scale well only by shedding functionality.
 
   % Pessimistic Concurrency.
   \subsection{Pessimistic Concurrency}
@@ -79,6 +74,7 @@ hereafter refer to anything that satisfies these properties as \textbf{transacti
   nor $B$ can make progress because each is waiting for the other to release their lock. This
   problem is typically mitigated by imposing a total order on lock acquisition; for any two locks
   $x$ and $y$, $x$ will always be acquired before $y$ or $y$ will always be acquired before $x$.
+  Programs must be carefully constructed so that all locks are acquired in the universal order.
 
   Second, faulty programs may never release their locks. For example, if program $A$ acquires lock
   $x$ and subsequently fails, then no other program can ever acquire $x$. This problem is typically
@@ -92,52 +88,119 @@ hereafter refer to anything that satisfies these properties as \textbf{transacti
   performance in situations where contention between programs is low.
 
   Fourth, locking cannot protect against programmer error. Programmers may omit or incorrectly use a
-  lock and thereby introduce race conditions into their program. Locks cannot guarantee they will be
-  used correctly, and, therefore, cannot guarantee that race conditions will be exhaustively
+  lock and thereby introduce race conditions into their program. Locks cannot guarantee that they
+  will be used correctly, and, therefore, cannot guarantee that race conditions will be exhaustively
   eliminated from a program.
 
   % Optimistic Concurrency.
   \subsection{Optimistic Concurrency}
-  Optimistic concurrency allows multiple programs to simultaneously access, but not modify, shared
-  data without acquiring locks. Each program locally buffers any modifications that it makes to
-  shared data and attempts to atomically apply them when it completes conditioned on the data that
-  it accessed remaining unchanged. If any data was modified, the program retries. This conditional
-  update, known as a multi-word compare-and-swap, is known to be transactional and is widely used in
-  a number of software transactional memory systems~\cite{stm} including Sinfonia~\cite{sinfonia}
-  and Caustic. We will hereafter refer to this operation as \textbf{cas} and its arguments as a
-  \textbf{transaction}. Optimistic concurrency assumes that contention between programs will be low,
-  because frequent retries can significantly degrade performance.
+  A final alternative is optimisitic concurrency. Optimistic concurrency allows multiple programs to
+  simultaneously access, but not modify, shared data without acquiring locks. Each program locally
+  buffers any modifications that it makes and attempts to atomically apply them when it completes
+  \emph{conditioned on the data that it accessed remaining unchanged}. If any data was modified, the
+  program retries. This conditional update, known as a multi-word compare-and-swap, is known to be
+  transactional and is widely used in a number of software transactional memory systems~\cite{stm}
+  including Sinfonia~\cite{sinfonia} and Caustic. We will hereafter refer to this operation as
+  \textbf{cas} and its arguments as a \textbf{transaction}.
 
   Optimistic concurrency requires a mechanism to detect that data has changed. The approach taken in
-  Caustic and in similar systems is to uniquely identify data with a \textbf{key} and to associate
-  each key with \textbf{revision}, or versioned value, whose version is incremented each time that
-  its value is changed. We say that revisions $A$ and $B$ for a key \textbf{conflict} if the version
-  of $A$ is less than $B$. Note that conflict is an asymmetric relation; if $A$ conflicts with $B$,
-  then $B$ does not conflict with $A$.
+  Caustic and in similar systems is known as multi-version concurrency control. Data is uniquely
+  identified by a \textbf{key} that is associated with a \textbf{revision}, or versioned value,
+  whose version is incremented each time that its value is changed. We say that revisions $A$ and
+  $B$ for a key \textbf{conflict} if the version of $A$ is less than $B$. Note that conflict is an
+  asymmetric relation; if $A$ conflicts with $B$, then $B$ does not conflict with $A$.
 
-  Optimistic concurrency also assumes the existence of an underlying key-value store, hereafter
-  referred to as a \textbf{volume}, that supports \textbf{get} and \textbf{cas} which access and
-  modify data respectively in the manner described above. We will provide a distributed,
-  fault-tolerant implementation of a volume in Beaker. For now, we will assume that such an
-  implementation exists.
+  Optimistic concurrency assumes that contention between programs will be low, because frequent
+  retries can significantly degrade performance. It also assumes the existence of an underlying
+  key-value store, hereafter referred to as a \textbf{volume}, that supports \textbf{get} and
+  \textbf{cas} which non-transactionally accesses and transactionally modifies data in the manner
+  described above. We will provide a distributed, fault-tolerant implementation of a volume in
+  Beaker. For now, we will assume that such an implementation exists.
 
 % Runtime.
 \section{Runtime}
-A simple implementation of optimistic concurrency might get each key whenever its value is needed
-by a program. This approach is performant for in-memory volumes, but does not scale well when
-volumes are located on disk or across networks. Instead, a scalable implementation of optimistic
-concurrency might get each key whenever its value is needed or \emph{will be needed} by a program.
-This is the approach taken in the \textbf{runtime}.
+A na\"ive implementation of optimistic concurrency would get each key whenever its value is needed
+by a program. This approach performs well when volumes are located in memory, but does not scale
+when they are on disk or across networks. Instead, a scalable implementation of optimistic
+concurrency would get each key whenever its value is needed or \emph{will be needed} by a program.
+This is the approach taken in the runtime.
+
+\begin{figure}[htb]
+  \caption{Concurrent Increment Program.}
+  \centering
+  \begin{tikzpicture}[
+    level/.style={sibling distance=60mm/#1},
+    every node/.append style={draw, minimum height=1.15cm, align=center, font=\tiny}
+  ]
+    \node [circle, draw] (a) {$write$}
+      child { node [circle, draw] (b) {$x$} }
+      child { node [circle, draw] (e) {$branch$}
+        child { node [circle, draw] (f) {$equal$}
+          child { node [circle, draw] (g) {$read$}
+            child { node [circle, draw] (h) {$x$} }
+          }
+          child { node [circle, draw] (i) {$null$} }
+        }
+        child { node [circle, draw] (j) {$1$} }
+        child { node [circle, draw] (c) {$add$}
+          child { node [circle, draw] (d) {$1$} }
+          child { node [circle, draw] (k) {$read$}
+            child { node [circle, draw] (l) {$x$} }
+          }
+        }
+      };
+  \end{tikzpicture}
+  \label{figure:increment}
+\end{figure}
 
 The \textbf{runtime} is a virtual machine that dynamically translates \textbf{programs} into
 transactions. A program is an abstract-syntax tree that is composed of \textbf{literals} and
 \textbf{expressions}. A literal is a scalar value of type $flag$, $real$, $text$, or $null$ which
 correspond to $bool$, $double$, $string$, and $null$ respectively in most C-style languages. An
-expression is a function that transforms literal arguments into a literal result. Expressions may be
-chained together arbitrarily to form complex programs. For example, $read(key)$ returns the value of
-the specified key and $write(key, value)$ updates the specified key with the specified value.
-Table~\ref{table:expressions} enumerates the various expressions that are natively supported by the
-runtime.
+expression is a function that transforms literal arguments into a literal result. For example,
+Figure~\ref{figure:increment} is a program that increments a counter. Expressions may be chained
+together arbitrarily to form complex programs. Table~\ref{table:expressions} enumerates the various
+expressions that are natively supported by the runtime.
+
+\begin{table}[ht]
+  \caption{Instruction Set}
+  \centering
+  \begin{tabular}{l | l}
+  \hline\hline
+    Expression & Description                                                                      \\
+    \hline
+    add(x, y)                & Sum of $x$ and $y$.                                                \\
+    both(x, y)               & Bitwise AND of $x$ and $y$.                                        \\
+    branch(c, p, f)          & Executes $p$ if $c$ is true, or $f$ otherwise.                     \\
+    cons(a, b)               & Executes $a$ and then $b$.                                         \\
+    contains(x, y)           & Returns whether or not $x$ contains $y$.                           \\
+    cos(x)                   & Cosine of $x$.                                                     \\
+    div(x, y)                & Quotient of $x$ and $y$.                                           \\
+    either(x, y)             & Bitwise OR of $x$ and $y$.                                         \\
+    equal(x, y)              & Returns whether $x$ and $y$ are equal.                             \\
+    floor(x)                 & Floor of $x$.                                                      \\
+    indexOf(x, y)            & Returns the index of the first occurrence of $y$ in $x$.           \\
+    length(x)                & Returns the number of characters in $x$.                           \\
+    less(x, y)               & Returns whether $x$ is strictly less than $y$.                     \\
+    load(n)                  & Loads the value of the variable $n$.                               \\
+    log(x)                   & Natural log of $x$.                                                \\
+    matches(x, y)            & Returns whether or not $x$ matches the regex pattern $y$.          \\
+    mod(x, y)                & Remainder of $x$ divided by $y$.                                   \\
+    mul(x, y)                & Product of $x$ and $y$.                                            \\
+    negate(x)                & Bitwise negation of $x$.                                           \\
+    pow(x, y)                & Returns $x$ raised to the power $y$.                               \\
+    prefetch(k, s)           & Reads keys at $k/i$ for $i$ in $[0, s)$.                           \\
+    read(k)                  & Reads the value of the key $k$.                                    \\
+    repeat(c, b)             & Repeatedly executes $b$ while $c$ is true.                         \\
+    rollback(r)              & Discards all writes and returns $r$.                               \\
+    sin(x)                   & Sine of $x$.                                                       \\
+    slice(x, l, h)           & Returns the substring of $x$ between $[l, h)$.                     \\
+    store(n, v)              & Stores the value $v$ for the variable $n$.                         \\
+    sub(x, y)                & Difference of $x$ and $y$.                                         \\
+    write(k, v)              & Writes the value $v$ for the key $k$.                              \\
+  \end{tabular}
+  \label{table:expressions}
+\end{table}
 
   % Execution.
   \subsection{Execution}
@@ -146,7 +209,7 @@ runtime.
 
   \begin{enumerate}
     \item \textbf{Fetch}: Get all keys that are read or written anywhere in the program that have
-          not been fetched before and add the returned revisions to a local \textbf{snapshot}.
+          not been fetched before, and add the returned revisions to a local \textbf{snapshot}.
     \item \textbf{Evaluate}: Recursively replace all expressions with literal arguments with their
           corresponding literal result. For example,
 
@@ -180,11 +243,15 @@ runtime.
   of operations on the database. This has significant performance implications, because I/O overhead
   is overwhelmingly the bottleneck by many orders of magnitude in most programs.~\cite{io}
 
+  Third, the runtime performs constant folding. Expressions with literal arguments are automatically
+  simplified. This significantly reduces the size of programs and thereby improves the performance
+  of the runtime.
+
   % Performance.
   \subsection{Performance}
   \begin{figure}[ht]
     \caption{Runtime Performance}
-    \label{figure:runtime-performance}
+    \label{figure:performance}
     \centering
     \begin{tikzpicture}
       \begin{axis}[
@@ -231,29 +298,28 @@ runtime.
     \end{tikzpicture}
   \end{figure}
 
-  In this section, we will evaluate the performance of the runtime. Performance benchmarks were
-  conducted on a t2.xlarge instance with 32GB of RAM and 8 CPUs. In
-  Figure~\ref{figure:runtime-performance}, we first graph execution latency as programs grow in
-  size. We see that each additional expression in a program has a constant overhead. In
-  Figure~\ref{figure:runtime-performance}, we then graph throughput under various workloads. We
-  generate programs that read and write the specified percentage of the key-space uniformly at
-  random and attempt to simultaneously execute them using the specified number of threads. Note that
-  the greater the percentage of writes, the greater the likelihood that a thread will write a key
-  that is simultaneously read or written by another. Because only one thread can succeed in such a
-  situation, this causes a reduction in throughput. We see that in read-only workloads, throughput
-  scales linearly with the number of threads. As we increase the percentage of writes, throughput
-  falls considerably but still scales linearly with the number of threads.
+  In Figure~\ref{figure:performance}, we examine execution latency and throughput. Benchmarks were
+  conducted on a t2.2xlarge instance with 32GB of RAM and 8 CPUs. We first see that latency
+  grows linearly with program size. In other words, \emph{each additional expression has a constant
+  overhead}. We then graph throughput under a variety of workloads. Each workload is composed of the
+  specified number of threads simultaneously executing a series of programs that each read and write
+  the specified percentages of the key-space uniformly at random. Note that the larger the
+  percentage of writes and the greater the number of threads, the more likely that cas
+  will fail and the more significant the reduction in throughput will be. We see that in read-only
+  workloads, throughput scales linearly with the number of threads. As the percentage of writes and
+  the number of threads increases, throughput falls considerably but still scales linearly with the
+  number of threads.
 
 % Standard Library.
 \section{Standard Library}
 The runtime provides native support for an extremely limited subset of the operations that
-programmers typically rely on to write programs. The standard library supplements the
-functionality of the runtime by exposing a rich Scala DSL complete with static types, records,
-math, collections, and control flow.
+programmers typically rely on to write applications. The standard library supplements the
+functionality of the runtime by exposing a robust Scala DSL complete with static types, records,
+collections, math, and control flow.
 
   % Typing.
   \subsection{Typing}
-  The runtime natively supports just four dynamic types: flag, real, text, and null.
+  The runtime natively supports just four dynamic types: $flag$, $real$, $text$, and $null$.
   Dynamic versus static typing is a religious debate among programmers. Advocates of dynamic
   typing often mistakenly believe that type inference and coercive subtyping cannot be provided by
   a static type system. In fact, they can. Because static type systems are able to
@@ -265,7 +331,7 @@ math, collections, and control flow.
   they are \textbf{boolean}, \textbf{int}, \textbf{double}, and \textbf{string}. A \texbf{value}
   represents a value of primitive type. There are two kinds of values. A \textbf{constant} is an
   immutable value, and a \textbf{variable} is a mutable value. Variables may be stored locally in
-  memory or remotely in a database.
+  memory or remotely in a volume.
 
   \begin{lstlisting}[style=Scala]
     // Creates an integer local variable named x.
@@ -285,9 +351,9 @@ math, collections, and control flow.
   % Records.
   \subsection{Records}
   In addition to these primitive types, the standard library also supports \textbf{references} to
-  user-defined types. References use \href{https://github.com/milessabin/shapeless}{Shapeless} to
-  materialize compiler macros that permit the fields of an object to be statically manipulated and
-  iterated. A current limitation is that objects cannot be self-referential; an object cannot have a
+  user-defined records. References use \href{https://github.com/milessabin/shapeless}{Shapeless} to
+  materialize compiler macros that permit the fields of a record to be statically manipulated and
+  iterated. A current limitation is that records cannot be self-referential; a record cannot have a
   field of its own type.
 
   \begin{lstlisting}[style=Scala]
@@ -318,6 +384,27 @@ math, collections, and control flow.
     y := x
   \end{lstlisting}
 
+  % Collections.
+  \subsection{Collections}
+  The runtime has no native support for collections of key-value pairs. The standard library
+  provides implementations of three fundamental data structures: \textbf{list}, \textbf{set},
+  and \textbf{map}. These collections are mutable and statically-typed. Collections take care of the
+  messy details of mapping structured data onto a flat namespace and feature prefetched iteration.
+  A current limitation is that collections may only contain primitive types.
+
+  \begin{lstlisting}[style=Scala]
+    // Constructs a map from string to boolean.
+    val x = Map[String, Boolean](Variable.Remote("y"))
+    // Puts an entry in the map.
+    x += "foo" -> true
+    // Serializes x to a JSON string.
+    x.asJson
+    // Constructs a list of integers.
+    val x = List[Int](Variable.Local("x"))
+    // Increments each element in the list.
+    x foreach { case (i, v) => x.set(i, v + 1) }
+  \end{lstlisting}
+
   % Math.
   \subsection{Math}
   The runtime natively supports just nine mathematical operations: $add$, $sub$, $mul$, $div$,
@@ -335,35 +422,59 @@ math, collections, and control flow.
     def sigmoid(x: Value[Double]) = exp(x) / (exp(x) + 1)
   \end{lstlisting}
 
-  % Collections.
-  \subsection{Collections}
-  The runtime has no native support for collections of key-value pairs. The standard library
-  provides implementations of three fundamental data structures: \textbf{list}, \textbf{set},
-  and \textbf{map}. These collections are mutable and statically-typed. Collections take care of the
-  messy details of mapping structured data onto a flat namespace, and feature prefetched iteration.
-  A current limitation is that collections may only contain primitive types.
 
-  \begin{lstlisting}[style=Scala]
-    // Constructs a map from string to boolean.
-    val x = Map[String, Boolean](Variable.Remote("y"))
-    // Puts an entry in the map.
-    x += "foo" -> true
-    // Serializes x to a JSON string.
-    x.asJson
-    // Constructs a list of integers.
-    val x = List[Int](Variable.Local("x"))
-    // Increments each element in the list.
-    x.foreach(_ + 1)
-  \end{lstlisting}
+  \begin{table}[ht]
+    \caption{Math}
+    \centering
+    \begin{tabular}{l | l}
+    \hline\hline
+      Function & Description                                                                      \\
+      \hline
+      abs(x)                   & Absolute value of $x$.                                           \\
+      acos(x)                  & Cosine inverse of $x$.                                           \\
+      acot(x)                  & Cotangent inverse of $x$.                                        \\
+      acsc(x)                  & Consecant inverse of $x$.                                        \\
+      asec(x)                  & Secant inverse of $x$.                                           \\
+      asin(x)                  & Sine inverse of $x$.                                             \\
+      atan(x)                  & Tangent inverse of $x$.                                          \\
+      cbrt(x)                  & Cube root of $x$.                                                \\
+      ceil(x)                  & Smallest integer greater than or equal to $x$.                   \\
+      cos(x)                   & Cosine of $x$.                                                   \\
+      cosh(x)                  & Hyperbolic cosine of $x$.                                        \\
+      cot(x)                   & Cotangent of $x$.                                                \\
+      coth(x)                  & Hyperbolic cotangent of $x$.                                     \\
+      csc(x)                   & Cosecant of $x$.                                                 \\
+      csch(x)                  & Hyperbolic cosecant of $x$.                                      \\
+      exp(x)                   & Exponential of $x$.                                              \\
+      expm1(x)                 & Equivalent to $e^x - 1$.                                         \\
+      floor(x)                 & Largest integer less than or equal to $x$.                       \\
+      hypot(x, y)              & Hypotenuse of the triangle with base $x$ and height $y$.         \\
+      log(x)                   & Natural logarithm of $x$.                                        \\
+      log10(x)                 & Log base 10 of $x$.                                              \\
+      log1p(x)                 & Equivalent to $\log (x + 1)$.                                    \\
+      pow(x, y)                & Power of $x$ to the $y$.                                         \\
+      random()                 & Uniformly random number on [0, 1).                               \\
+      rint(x)                  & Closest integer to $x$, rounding to the nearest even number.     \\
+      round(x)                 & Closest integer to $x$, rounding up.                             \\
+      round(x, y)              & Closest multiple of $y$ to $x$.                                  \\
+      sec(x)                   & Secant of $x$.                                                   \\
+      sech(x)                  & Hyperbolic secant of $x$.                                        \\
+      signum(x)                & Sign of $x$.                                                     \\
+      sin(x)                   & Sine of $x$.                                                     \\
+      sinh(x)                  & Hyperbolic sine of $x$.                                          \\
+      sqrt(x)                  & Square root of $x$.                                              \\
+      tan(x)                   & Tangent of $x$.                                                  \\
+      tanh(x)                  & Hyperbolic tangent of $x$.                                       \\
+    \end{tabular}
+    \label{table:math}
+  \end{table}
 
   % Control Flow.
   \subsection{Control Flow}
   The runtime natively supports control flow operations like $branch$, $cons$, and $repeat$.
   However, these operations are syntactically challenging to express. The standard library
   uses structural types to provide support for \textbf{if}, \textbf{while}, \textbf{return},
-  \textbf{assert}, and \textbf{rollback}. The standard library uses an implicitly available parsing
-  \textbf{context} to track modifications made to variables, references, and collections and to
-  detect when any control flow operations are called.
+  \textbf{assert}, and \textbf{rollback}.
 
   \begin{lstlisting}[style=Scala]
     // If statements.
@@ -390,17 +501,20 @@ math, collections, and control flow.
 % Compiler.
 \section{Compiler}
 The standard library provides additional functionality that is absent in the runtime to make it
-easier to construct programs. However, the standard library does not address the syntactic
-challenges of expressing programs. At times the standard library is forced to use unintuitive
-operators like $:=$ and $<>$ and verbose declarations like $Variable.Remote(``x")$, because of the
-limitations of implementing a language within a language.
+easier to construct programs. However, it does not address the syntactic challenges of expressing
+programs. At times the standard library is forced to use unintuitive operators like $:=$ and $<>$
+and verbose declarations like $Variable.Remote(``x")$, because of the limitations of implementing a
+language within a language.
+
+The \textbf{compiler}, Causticc, translates code written in the Caustic programming language
+into operations on the standard library. Caustic features aggressive type inference, static typing,
+and a concise grammar.
 
   % Implementation.
   \subsection{Implementation}
-  The compiler uses ANTLR~\cite{antlr} to generate a predicated LL(*) parser from an ANTLR grammar
-  file. It applies this parser to source files and walks the resulting parse-tree to generate code
-  compatible with the standard library. Most statements in Caustic have direct equivalents in the
-  standard library, and, for the most part, the compiler acts as a kind of intelligent
+  We use ANTLR~\cite{antlr} to generate a predicated LL(*) parser from an ANTLR grammar and then
+  walk the resulting parse-tree to generate code. Most statements in Caustic have direct equivalents
+  in the standard library. For the most part, the compiler acts as a kind of intelligent
   find-and-replace. However, there are certain aspects of the compiler that are non-trivial.
 
   First, the compiler performs type inference. It is able statically verify types and method
@@ -409,9 +523,9 @@ limitations of implementing a language within a language.
   types almost never need to be specified. The combination of a static type system and aggressive
   type inference allows programs to be both type-safe and concise.
 
-  Second, the compiler is directly integrated in the \href{https://www.pantsbuild.org/}{Pants} build
-  system. Pants is an open-source, cross-language build system. Integration into Pants means that
-  Caustic programs are interoperable with a variety of existing languages and tooling.
+  Second, the compiler is directly integrated \href{https://www.pantsbuild.org/}{Pants}. Pants is an
+  open-source, cross-language build system. Integration into Pants means that Caustic programs are
+  interoperable with a variety of existing languages and tooling.
 
   Third, the compiler provides a \href{https://macromates.com/}{TextMate} bundle that implements
   syntax highlighting and code completion for most text editors and IDEs to make it easier for
@@ -565,6 +679,9 @@ limitations of implementing a language within a language.
 
     /**
      * A read-write lock.
+     *
+     * @param readers Number of readers.
+     * @param writers Number of writers.
      */
     struct Lock {
       readers: Int,
@@ -573,9 +690,15 @@ limitations of implementing a language within a language.
 
     /**
      * An access permit.
+     *
+     * @param lock Underlying lock.
+     * @param forRead Read access.
+     * @param forWrite Write access.
      */
     struct Permit {
-      readOnly: Boolean,
+      lock: Lock&,
+      forRead: Boolean,
+      forWrite: Boolean
     }
 
     /**
@@ -591,10 +714,10 @@ limitations of implementing a language within a language.
        */
       def exclusive(lock: Lock&): Permit = {
         if (lock.writers > 0 || lock.readers > 0) {
-          null
+          Permit(lock, false, false)
         } else {
           lock.writers += 1
-          Permit(false)
+          Permit(lock, false, true)
         }
       }
 
@@ -606,27 +729,26 @@ limitations of implementing a language within a language.
        */
       def shared(lock: Lock&): Permit = {
         if (lock.writers > 0) {
-          null
+          Permit(lock, false, false)
         } else {
           lock.readers += 1
-          Permit(true)
+          Permit(lock, true, false)
         }
       }
 
       /**
-       * Revoke the permit`s access to the lock.
+       * Revoke the permit's access.
        *
-       * @param lock Lock.
        * @param permit Permit.
        */
-      def release(lock: Lock&, permit: Permit): Unit = {
-        if (permit.readOnly) {
-          lock.readers -= 1
-        } else {
-          lock.writers -= 1
+      def release(permit: Permit): Unit = {
+        if (permit.forRead) {
+          permit.lock.readers -= 1
+        } elif (permit.forWrite) {
+          permit.lock.writers -= 1
         }
       }
-
+    
     }
   \end{lstlisting}
 
@@ -634,11 +756,8 @@ limitations of implementing a language within a language.
 \section{Conclusion}
 Concurrency is difficult, but it does not need to be. Caustic allows programmers to build concurrent
 systems as if they were they were not. It provides a highly programmable alternative to traditional
-approaches for dealing with race conditions and features concise syntax, static typing, aggressive
-type inference, and a performant runtime.
-
-We have seen that it is possible to build a robust transactional programming language over any
-underlying storage volume that supports just two operations. In Beaker, we will show that these
-operations can be efficiently implemented by a distributed database.
+approaches for dealing with race conditions. We have shown that it is possible to build a robust,
+transactional programming language over any volume that supports just two operations. In Beaker, we
+will see that these operations can be efficiently implemented.
 
 \end{document}

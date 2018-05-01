@@ -1,7 +1,6 @@
 \documentclass[12pt]{report}
 
 % Packages.
-\usepackage{a4wide}
 \usepackage{amsmath, amssymb, amsthm}
 \usepackage[backend=biber]{biblatex}
 \usepackage{graphicx}
@@ -24,7 +23,7 @@
 }
 
 \lstdefinestyle{Caustic}{
-  basicstyle=\small\ttfamily\color{black},
+  basicstyle=\scriptsize\ttfamily\color{black},
   breaklines=true,
   moredelim=[s][\color{green!50!black}\ttfamily]{'}{'},
   moredelim=*[s][\color{black}\ttfamily]{options}{\}},
@@ -43,7 +42,7 @@
 }
 
 \lstdefinestyle{Scala}{
-  basicstyle=\small\ttfamily\color{black},
+  basicstyle=\scriptsize\ttfamily\color{black},
   breaklines=true,
   moredelim=[s][\color{green!50!black}\ttfamily]{'}{'},
   moredelim=*[s][\color{black}\ttfamily]{options}{\}},
@@ -120,14 +119,6 @@
 % Beaker.
 \chapter{Beaker: A Distributed, Transactional Database}
 \subfile{beaker/beaker}
-
-% Appendix.
-\appendix
-\chapter{Caustic Addemdum}
-\subfile{caustic/appendix}
-
-\chapter{Beaker Addemdum}
-\subfile{beaker/appendix}
 
 % References.
 \printbibliography

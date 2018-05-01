@@ -1,11 +1,13 @@
 \documentclass[../main.tex]{subfiles}
 
 \begin{document}
-In this chapter, we will discuss Beaker. Beaker is a distributed, fault-tolerant database that
-efficiently implements the interface on which transactional programming languages can be built. We
-will first motivate the design of Beaker by discussing consensus and its application to distributed
-transactions. We will then introduce Beaker and discuss its implementation. We will conclude with an
-evaluation of its performance.
+Beaker is a distributed, transactional database that serves as the underlying storage system for
+Caustic. Beaker is fault-tolerant, configurable, and performant.
+
+In Section 1, we motivate the design of Beaker through a discussion of consensus. In Section
+2, we discuss the algorithm that Beaker uses to commit distributed transactions and provide a rough
+proof of correctness and a description of its implementation. In Section 3, we evaluate the
+performance of Beaker under a variety of workloads.
 
 % Consensus.
 \section{Consensus}
@@ -95,8 +97,8 @@ consensus algorithms culminating with the approach taken in Beaker.
 
   \subsection{Generalized Paxos}
   Generalized Paxos~\cite{generalized-paxos} addresses the scalability of Paxos by exploiting
-  commutativity. An operation $A$ commutes with $B$ if performing $A$ after $B$ has the same effect
-  as performing $B$ after $A$. For example, addition is commutative but division is not;
+  commutativity. An operation $A$ \textbf{commutes} with $B$ if performing $A$ after $B$ has the
+  same effect as performing $B$ after $A$. For example, addition is commutative but division is not;
   $4 + 3 = 3 + 4$ but $\frac{4}{3} \ne \frac{3}{4}$. In fact, most operations on a distributed
   database are commutative. Reads commute with each other and reads and writes to different keys
   commute.
@@ -139,7 +141,7 @@ consensus algorithms culminating with the approach taken in Beaker.
   other replicas to accept its choice before resuming normal operation.
 
   Egalitarian Paxos implicitly assumes that operations are idempotent, because an operation may be
-  in the dependency graph of multiple proposals. An operation $A$ is idempotent if repeated
+  in the dependency graph of multiple proposals. An operation $A$ is \textbf{idempotent} if repeated
   non-sequential applications of $A$ have the same effect as a single application of $A$. For
   example, multiplication by one is idempotent but by two is not; $4 * 1 = 4 * 1 * 1$ but
   $4 * 2 \ne 4 * 2 * 2$. This assumption will become important when we use Egalitarian Paxos to
@@ -323,11 +325,132 @@ proof of correctness.
   Each beaker maintains its own view of the cluster configuration which it sends alongside any
   proposal that it proposes. If the view is outdated, beakers inform the proposer of the new
   configuration. If a beaker has already accepted a proposal from an outdated view, that proposal
-  must be completed before the cluster can move to a new configuration. This ensures that
+  must be completed before the cluster can move to the new configuration. This ensures that
   reconfiguration is consistent across the cluster.
 
 % Evaluation.
 \section{Evaluation}
+
+  % YCSB.
+  \subsection{YCSB}
+  The \href{https://github.com/brianfrankcooper/YCSB}{Yahoo Cloud Serving Benchmark} (YCSB) is a
+  common benchmark used to evaluate databases under various workloads. Each workload is composed of
+  a different ratio of reads, inserts, and updates to benchmark performance under various kinds of
+  load. Workload A is composed 50\% reads and 50\% updates, B of 95\% reads and 5\% updates, C of
+  100\% reads, D of 95\% reads and 5\% inserts, and F of 50\% reads and 50\% read-modify-writes.
+
+  \begin{figure}
+    \caption{YCSB Throughput}
+    \label{ycsb-throughput}
+    \centering
+    \begin{tikzpicture}
+      \begin{axis}[
+        ybar,
+        xlabel={Instances},
+        ylabel={Throughput (ops/sec)},
+        xtick=data,
+        bar width=8,
+        enlarge x limits={abs=0.6},
+        legend cell align={left},
+        legend style={at={(1.03,1)}, anchor=north west, draw=black, fill=white, align=left},
+      ]
+        \addplot
+        table[y index=1] {data/beaker-throughput.dat};
+        \addlegendentry{Workload A};
+        \addplot
+        table[y index=2] {data/beaker-throughput.dat};
+        \addlegendentry{Workload B};
+        \addplot
+        table[y index=3] {data/beaker-throughput.dat};
+        \addlegendentry{Workload C};
+        \addplot
+        table[y index=4] {data/beaker-throughput.dat};
+        \addlegendentry{Workload D};
+        \addplot
+        table[y index=5] {data/beaker-throughput.dat};
+        \addlegendentry{Workload F};
+      \end{axis}
+    \end{tikzpicture}
+  \end{figure}
+
+  \begin{figure}[h]
+    \caption{YCSB Read Latency}
+    \label{ycsb-latency-read}
+    \centering
+    \begin{tikzpicture}
+      \begin{axis}[
+        ybar,
+        xlabel={Instances},
+        ylabel={95\% Read Latency ($\mu$s)},
+        xtick=data,
+        ymin=0,
+        bar width=8,
+        enlarge x limits={abs=0.6},
+        legend cell align={left},
+        legend style={at={(1.03,1)}, anchor=north west, draw=black, fill=white, align=left},
+      ]
+        \addplot
+        table[y index=1] {data/beaker-latency-read.dat};
+        \addlegendentry{Workload A};
+        \addplot
+        table[y index=2] {data/beaker-latency-read.dat};
+        \addlegendentry{Workload B};
+        \addplot
+        table[y index=3] {data/beaker-latency-read.dat};
+        \addlegendentry{Workload C};
+        \addplot
+        table[y index=4] {data/beaker-latency-read.dat};
+        \addlegendentry{Workload D};
+        \addplot
+        table[y index=5] {data/beaker-latency-read.dat};
+        \addlegendentry{Workload F};
+      \end{axis}
+    \end{tikzpicture}
+  \end{figure}
+
+  \begin{figure}[h]
+    \caption{YCSB Write Latency}
+    \label{ycsb-latency-write}
+    \centering
+    \begin{tikzpicture}
+      \begin{axis}[
+        ybar,
+        xlabel={Instances},
+        ylabel={95\% Write Latency ($\mu$s)},
+        xtick=data,
+        ymin=0,
+        bar width=8,
+        enlarge x limits={abs=0.6},
+        legend cell align={left},
+        legend style={at={(1.03,1)}, anchor=north west, draw=black, fill=white, align=left},
+      ]
+        \addplot
+        table[y index=1] {data/beaker-latency-write.dat};
+        \addlegendentry{Workload A};
+        \addplot
+        table[y index=2] {data/beaker-latency-write.dat};
+        \addlegendentry{Workload B};
+        \addplot
+        table[y index=3] {data/beaker-latency-write.dat};
+        \addlegendentry{Workload C};
+        \addplot
+        table[y index=4] {data/beaker-latency-write.dat};
+        \addlegendentry{Workload D};
+        \addplot
+        table[y index=5] {data/beaker-latency-write.dat};
+        \addlegendentry{Workload F};
+      \end{axis}
+    \end{tikzpicture}
+  \end{figure}
+
+  In Figure~\ref{ycsb-throughput}, we examine how throughput changes as the number of instances in
+  the cluster increases. We see that throughput scales well in read-dominant workloads and falls
+  considerably in write-dominant workloads. In Figure~\ref{ycsb-latency-read}, we examine the 95\%
+  read latency as the number of instances in the cluster increases. We see that read latency remains
+  relatively constant across all workloads, even as the number of instances increases. In
+  Figure~\ref{ycsb-latency-write}, we examine the 95\% read latency as the number of instances in
+  the cluster increases. We see that write latency increases as the number of instances increases,
+  because more instances take longer to reach consensus.
 
   % Contention.
   \subsection{Contention}
@@ -364,9 +487,9 @@ proof of correctness.
 
   We assume for the sake of simplicity that there exist exactly two proposers that are
   simultaneously committing transactions. In practice, most systems will have many more active
-  proposers. Unfortunately, I lack the mathematical acumen to analytically derive contention
+  proposers. Unfortunately, I lack the mathematical ability to analytically derive contention
   probability in the general case. However, the contention probability may be numerically
-  approximated in the general case by changing the number of threads in the Monte Carlo simulation.
+  approximated by changing the number of threads in the Monte Carlo simulation.
 
   We may use our empirically verified model of contention to make predictions about the performance
   degradation of the system under varying degrees of contention. Given a key-space of size $n$ and
@@ -376,5 +499,7 @@ proof of correctness.
 
 % Conclusion.
 \section{Conclusion}
+We have presented the design and implementation of Beaker and shown that it is possible to build
+robust programming language from the minimal interface it provides.
 
 \end{document}
