@@ -178,11 +178,10 @@ proof of correctness.
   transactions are committed on the underlying database.
 
   An \textbf{archive} is a transactional database. Archives use an \textbf{executor} to linearize
-  conflicting transactions on the underlying database. An executor schedules transactions in
-  \textbf{epochs}. Transactions are scheduled in the earliest epoch such that they do not conflict
-  with any transaction in a later epoch. This guarantees consistency and isolation; transactions
-  see the effect of any previously committed conflicting transaction and conflicting transactions
-  are never committed simultaneously.
+  conflicting transactions on the underlying database. An executor schedules transactions in groups
+  such that conflicting transactions are never simultaneously performed. This guarantees consistency
+  and isolation; transactions see the effect of any previously committed conflicting transaction and
+  conflicting transactions are never committed simultaneously.
 
   We define our replica as a \textbf{beaker}. Beakers use a variation of Egalitarian Paxos to
   coordinate distributed transactions with several desirable properties. First, non-conflicting
